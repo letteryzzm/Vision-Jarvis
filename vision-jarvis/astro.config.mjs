@@ -1,6 +1,8 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 
+import tailwindcss from '@tailwindcss/vite';
+
 // https://astro.build/config
 export default defineConfig({
   // 输出静态站点（Tauri 需要）
@@ -19,11 +21,15 @@ export default defineConfig({
   vite: {
     // 清除控制台
     clearScreen: false,
+
     // 服务器配置
     server: {
       strictPort: true,  // 端口被占用时不自动尝试下一个
     },
+
     // 环境变量前缀（可选）
     envPrefix: ['VITE_', 'TAURI_'],
+
+    plugins: [tailwindcss()],
   },
 });
