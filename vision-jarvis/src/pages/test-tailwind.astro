@@ -1,0 +1,54 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout>
+	<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+		<div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
+			<h1 class="text-4xl font-bold text-gray-900 mb-4">
+				🎉 Tailwind CSS 配置成功！
+			</h1>
+
+			<p class="text-lg text-gray-600 mb-6">
+				Vision-Jarvis 现在已经集成了 Tailwind CSS v4。
+			</p>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<div class="bg-blue-100 border-l-4 border-blue-500 p-4 rounded">
+					<h3 class="font-semibold text-blue-900 mb-2">✅ 响应式设计</h3>
+					<p class="text-sm text-blue-700">自动适配不同屏幕尺寸</p>
+				</div>
+
+				<div class="bg-green-100 border-l-4 border-green-500 p-4 rounded">
+					<h3 class="font-semibold text-green-900 mb-2">🎨 实用类优先</h3>
+					<p class="text-sm text-green-700">快速构建现代化界面</p>
+				</div>
+
+				<div class="bg-purple-100 border-l-4 border-purple-500 p-4 rounded">
+					<h3 class="font-semibold text-purple-900 mb-2">⚡ 性能优化</h3>
+					<p class="text-sm text-purple-700">仅包含使用的样式</p>
+				</div>
+
+				<div class="bg-orange-100 border-l-4 border-orange-500 p-4 rounded">
+					<h3 class="font-semibold text-orange-900 mb-2">🔧 高度可定制</h3>
+					<p class="text-sm text-orange-700">轻松扩展和自定义</p>
+				</div>
+			</div>
+
+			<div class="mt-8 flex gap-4">
+				<button class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg">
+					开始使用
+				</button>
+				<button class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+					了解更多
+				</button>
+			</div>
+
+			<div class="mt-6 p-4 bg-gray-50 rounded-lg">
+				<p class="text-sm text-gray-600">
+					<strong>技术栈：</strong> Tauri v2 + Astro v5 + Tailwind CSS v4
+				</p>
+			</div>
+		</div>
+	</div>
+</Layout>
