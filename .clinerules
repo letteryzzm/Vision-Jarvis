@@ -1,0 +1,185 @@
+# Vision-Jarvis 项目开发规范
+
+## 📁 文档管理规范 (Document Management)
+
+### 统一文档目录: `docs/`
+
+**重要**: 所有项目文档必须存放在 `docs/` 目录中，保持项目根目录整洁。
+
+#### 文档分类和命名规范
+
+```
+docs/
+├── planning/               # 规划文档
+│   ├── MASTER_PLAN.md     # 主计划（必须）
+│   ├── architecture.md    # 架构设计
+│   └── roadmap.md         # 路线图
+│
+├── development/           # 开发文档
+│   ├── setup.md          # 环境搭建
+│   ├── workflow.md       # 开发流程
+│   └── conventions.md    # 代码规范
+│
+├── technical/            # 技术文档
+│   ├── api/             # API 文档
+│   ├── components/      # 组件文档
+│   └── architecture/    # 架构图和说明
+│
+├── testing/             # 测试文档
+│   ├── test-reports/   # 测试报告
+│   └── integration/    # 集成测试文档
+│
+├── releases/           # 发布文档
+│   ├── changelog.md   # 变更日志
+│   └── migration/     # 迁移指南
+│
+└── notes/             # 临时笔记和记录
+    └── YYYYMMDD-*.md # 日期命名的临时记录
+```
+
+### 📝 创建文档时的规则
+
+**Claude Code 必须遵守以下规则**：
+
+1. **所有新建的 Markdown 文档必须放在 `docs/` 目录**
+   - ✅ 正确: `docs/testing/test-reports/2026-01-29-tauri-integration.md`
+   - ❌ 错误: `TEST_RESULT.md` (根目录)
+   - ❌ 错误: `vision-jarvis/REPORT.md` (子项目目录)
+
+2. **文档类型映射**
+   - 测试报告 → `docs/testing/test-reports/`
+   - 集成文档 → `docs/testing/integration/`
+   - 技术方案 → `docs/technical/`
+   - 规划文档 → `docs/planning/`
+   - 临时记录 → `docs/notes/`
+
+3. **文档命名规范**
+   - 使用小写字母和连字符: `screen-capture-api.md`
+   - 日期前缀用于临时文档: `2026-01-29-test-result.md`
+   - 避免使用大写: 用 `master-plan.md` 而不是 `MASTER_PLAN.md`
+   - 例外: `README.md` 可以使用大写（Git 约定）
+
+4. **创建文档前的检查**
+   - 先检查 `docs/` 中是否已有类似文档
+   - 确定文档类型和应该存放的子目录
+   - 如果不确定，默认放在 `docs/notes/`
+
+5. **禁止的行为**
+   - ❌ 不要在项目根目录创建新的 `.md` 文件（除非是标准文件如 README.md）
+   - ❌ 不要在 `src/`、`vision-jarvis/` 等代码目录创建文档
+   - ❌ 不要创建散乱的 `*.md` 文件
+
+### 🔄 迁移现有文档
+
+如果发现根目录或其他位置有分散的文档，应该：
+
+1. 将其移动到 `docs/` 对应的子目录
+2. 更新所有引用该文档的链接
+3. 在原位置添加重定向说明（如果需要）
+
+## 📦 项目结构规范
+
+### 保持根目录整洁
+
+根目录应该只包含：
+- 配置文件 (`.gitignore`, `package.json`, `pyproject.toml` 等)
+- 标准文档 (`README.md`, `LICENSE`, `CHANGELOG.md`)
+- 核心目录 (`src/`, `docs/`, `scripts/`, `tests/`)
+- 隐藏配置 (`.claude/`, `.git/`, `.env`)
+
+### 代码组织
+
+```
+vision-jarvis/          # Tauri + Astro 主项目
+├── src/               # Astro 前端源码
+├── src-tauri/         # Tauri Rust 后端
+├── public/            # 静态资源
+└── dist/              # 构建输出 (gitignore)
+
+src/                   # 未来的核心代码 (Python/Rust)
+├── vision_jarvis/    # Python 包
+└── core/             # 核心模块
+
+config/               # 配置文件
+scripts/              # 工具脚本
+tests/                # 测试文件
+```
+
+## 🛠️ 开发工作流
+
+### Git Commit 规范
+
+使用约定式提交 (Conventional Commits):
+
+```
+feat: 新功能
+fix: 修复
+docs: 文档更新
+style: 代码格式
+refactor: 重构
+test: 测试
+chore: 杂项
+```
+
+示例:
+```
+docs: migrate test reports to docs/testing/
+feat(screen-capture): add macOS Quartz integration
+fix(memory): resolve short-term cache TTL issue
+```
+
+### 创建新功能时
+
+1. 在 `docs/planning/MASTER_PLAN.md` 中添加任务
+2. 创建对应的技术文档在 `docs/technical/`
+3. 实现代码
+4. 添加测试
+5. 更新文档
+
+## 🎯 AI 助手专用提示
+
+**当用户要求创建文档、报告、或说明时**:
+
+1. 首先确定文档类型
+2. 在 `docs/` 对应子目录创建文件
+3. 使用规范的命名格式
+4. 在文档中包含元数据（创建日期、用途、相关文件）
+
+**示例对话**:
+```
+用户: "创建一个测试报告"
+AI: "我会在 docs/testing/test-reports/ 创建测试报告，
+     文件名: 2026-01-29-tauri-integration-test.md"
+
+用户: "写一个 API 设计文档"
+AI: "我会在 docs/technical/api/ 创建 API 文档，
+     文件名: screen-capture-api.md"
+```
+
+## 🚫 常见错误和纠正
+
+| ❌ 错误做法 | ✅ 正确做法 |
+|------------|------------|
+| 在根目录创建 `TEST.md` | 在 `docs/testing/test-reports/` 创建 |
+| 在 `vision-jarvis/` 下创建文档 | 在 `docs/technical/` 创建 |
+| 使用 `NEW_FEATURE.md` | 使用 `docs/notes/2026-01-29-new-feature.md` |
+| 重复的文档散落各处 | 统一在 `docs/` 中管理 |
+
+## 📌 特殊说明
+
+### 可以保留在根目录的文件
+
+- `README.md` - 项目主说明（必须）
+- `LICENSE` - 开源许可证
+- `CHANGELOG.md` - 变更日志（如果使用）
+- `.gitignore`, `.env.example` - 配置文件
+
+### 子项目的 README
+
+- `vision-jarvis/README.md` - 可以保留，用于说明该子项目
+- 但详细的技术文档应该在 `docs/technical/`
+
+---
+
+**最后更新**: 2026-01-29
+**维护者**: Claude Code + 用户
