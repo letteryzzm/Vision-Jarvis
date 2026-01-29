@@ -218,3 +218,19 @@ config.local.yaml
 # Logs
 *.log
 logs/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/.DS_Store
+
+# Root directory test remnants (use vision-jarvis/ instead)
+/node_modules/
+/package-lock.json
+
+# Deprecated scaffolds
+blue-bar/
