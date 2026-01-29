@@ -71,6 +71,10 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# 📁 Vision-Jarvis 文档目录
+# docs/ 目录本身应该被追踪，只忽略构建输出
+# docs/  # 不要忽略整个 docs 目录！
+
 # PyBuilder
 .pybuilder/
 target/
@@ -205,3 +209,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Vision-Jarvis specific
+# Data directory (runtime data, not versioned)
+data/
+# Local configuration overrides
+config.local.yaml
+# Logs
+*.log
+logs/
