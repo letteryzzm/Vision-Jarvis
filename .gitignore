@@ -227,7 +227,7 @@ logs/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/.DS_Store
-
+worktrees/
 # Root directory test remnants (use vision-jarvis/ instead)
 node_modules/
 /node_modules/
