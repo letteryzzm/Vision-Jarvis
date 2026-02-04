@@ -9,12 +9,30 @@
 
 ## [Unreleased]
 
+### Added - 前端文档 (2026-02-04)
+- 📝 创建前端文档总览 (frontend/README.md)
+- 🏗️ 创建前端架构设计文档 (frontend/architecture.md)
+- 📦 创建组件库概述 (frontend/components/README.md)
+- 🎨 创建核心组件文档:
+  - FloatingOrb 悬浮球组件 (frontend/components/FloatingOrb.md)
+  - Header 展开模式组件 (frontend/components/Header.md)
+  - Asker AI 问答组件 (frontend/components/Asker.md)
+- 📄 创建页面文档:
+  - Memory 记忆管理页面 (frontend/pages/memory.md)
+  - Popup-Setting 提醒设置页面 (frontend/pages/popup-setting.md)
+
 ### 待创建
 - 系统整体架构文档 (technical/architecture/system-overview.md)
 - 数据流设计文档 (technical/architecture/data-flow.md)
 - 前后端集成文档 (technical/architecture/integration.md)
 - 产品路线图 (planning/roadmap.md)
 - 需求文档 (planning/requirements.md)
+- 前端其他组件文档 (DatePicker, MemoryList, MemoryCard, FloatingInput, SettingCard, ToggleSwitch 等)
+- 前端状态管理文档 (frontend/state-management.md)
+- 前端样式规范文档 (frontend/styling.md)
+- 前端动画设计文档 (frontend/animations.md)
+- 前端开发指南 (frontend/development.md)
+- 前端测试文档 (frontend/testing.md)
 
 ---
 

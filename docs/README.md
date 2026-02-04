@@ -26,10 +26,12 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 - [后端文档入口](../vision-jarvis/src-tauri/docs/README.md) ✅
 
 ### 前端开发者
-- [前端文档总览](../vision-jarvis/src/docs/README.md) ✅
-- [前端设计](../vision-jarvis/src/docs/technical/architecture/frontend-design.md) ✅
-- [组件规格](../vision-jarvis/src/docs/technical/components/component-specs.md) ✅
-- [类型定义](../vision-jarvis/src/docs/technical/components/type-definitions.md) ✅
+- [前端文档总览](frontend/README.md) ✅
+- [前端架构设计](frontend/architecture.md) ✅
+- [组件库概述](frontend/components/README.md) ✅
+- [页面文档](frontend/pages/) ✅
+  - [Memory 页面](frontend/pages/memory.md)
+  - [Popup-Setting 页面](frontend/pages/popup-setting.md)
 
 ### 后端开发者
 - [后端文档总览](../vision-jarvis/src-tauri/docs/README.md) ✅
