@@ -2,6 +2,8 @@
 mod db;
 mod settings;
 mod capture;
+mod ai;
+mod memory;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
