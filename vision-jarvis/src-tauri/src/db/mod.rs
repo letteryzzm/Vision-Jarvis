@@ -1,13 +1,15 @@
 use anyhow::Result;
 use rusqlite::Connection;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 pub mod schema;
 pub mod migrations;
 
 /// 数据库管理器
+#[derive(Clone)]
 pub struct Database {
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl Database {
@@ -18,18 +20,25 @@ impl Database {
         // 启用外键约束
         conn.execute("PRAGMA foreign_keys = ON", [])?;
 
-        Ok(Self { conn })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     /// 初始化数据库表结构
     pub fn initialize(&self) -> Result<()> {
-        migrations::run_migrations(&self.conn)?;
+        let conn = self.conn.lock().unwrap();
+        migrations::run_migrations(&conn)?;
         Ok(())
     }
 
-    /// 获取数据库连接的可变引用
-    pub fn connection(&self) -> &Connection {
-        &self.conn
+    /// 获取数据库连接的引用（需要锁定）
+    pub fn with_connection<F, R>(&self, f: F) -> Result<R>
+    where
+        F: FnOnce(&Connection) -> Result<R>,
+    {
+        let conn = self.conn.lock().unwrap();
+        f(&conn)
     }
 }
 

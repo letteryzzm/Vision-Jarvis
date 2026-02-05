@@ -25,6 +25,7 @@ fn create_screenshots_table(conn: &Connection) -> Result<()> {
             analyzed INTEGER DEFAULT 0,
             analysis_result TEXT,
             embedding BLOB,
+            analyzed_at INTEGER,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )",
         [],

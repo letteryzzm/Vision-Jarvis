@@ -1,7 +1,7 @@
 # screenshots 表 (D1) - 截图记录表
 
 > **最后更新**: 2026-02-05
-> **版本**: v1.1
+> **版本**: v1.2
 > **表名**: `screenshots`
 > **别名**: D1
 > **实现状态**: ✅ 已实现
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS screenshots (
     analyzed INTEGER DEFAULT 0,            -- 是否已分析 (0/1)
     analysis_result TEXT,                  -- AI 分析结果（JSON）
     embedding BLOB,                        -- 向量嵌入（用于语义搜索）
+    analyzed_at INTEGER,                   -- 分析完成时间戳（v1.2 新增）
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
 );
 ```
@@ -44,60 +45,15 @@ CREATE INDEX IF NOT EXISTS idx_screenshots_analyzed
     ON screenshots(analyzed);
 ```
 
+### 字段说明
+
+#### id
 - **类型**: TEXT
-- **约束**: NOT NULL
-- **描述**: 截图文件的绝对路径
-- **示例**: `/Users/user/Library/Application Support/Vision-Jarvis/screenshots/1738675200_VSCode.webp`
+- **约束**: PRIMARY KEY
+- **描述**: 截图唯一标识符（UUID v4）
+- **示例**: `550e8400-e29b-41d4-a716-446655440000`
 
-### app_name
-
-- **类型**: TEXT
-- **约束**: NOT NULL
-- **描述**: 截图时的活跃应用名称
-- **示例**: `Visual Studio Code`, `Google Chrome`
-
-### timestamp
-
-- **类型**: DATETIME
-- **约束**: NOT NULL
-- **描述**: 截图捕获时间 (UTC)
-- **格式**: ISO 8601
-- **示例**: `2026-02-04T10:30:00Z`
-
-### file_size
-
-- **类型**: INTEGER
-- **约束**: NOT NULL
-- **描述**: 截图文件大小，单位字节
-- **示例**: `524288` (512 KB)
-
-### content_hash
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: 图片内容的 SHA256 哈希值，用于去重和内容变化检测
-- **示例**: `a3b5c7d9e1f2...`
-
-### ocr_text
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: OCR 识别出的文本内容
-- **示例**: `function calculateSum(a: number, b: number) { return a + b; }`
-
-### ai_summary
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: AI 生成的截图内容摘要
-- **示例**: `用户正在 VSCode 中编写 TypeScript 函数，实现数字求和功能`
-
-### keywords
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: AI 提取的关键词，逗号分隔
-- **示例**: `TypeScript, 函数, VSCode, 编程`
+#### path
 
 ### confidence
 
@@ -367,5 +323,20 @@ fn validate_status(status: &str) -> Result<(), ValidationError> {
 
 ---
 
+## 版本历史
+
+### v1.2 (2026-02-05) - Phase 3
+- ✅ 新增 `analyzed_at` 字段 - 记录分析完成时间戳
+- ✅ 用于追踪分析任务完成时间
+- ✅ 后台调度器使用此字段进行任务统计
+
+### v1.1 (2026-02-05) - Phase 1
+- ✅ 初始表结构实现
+- ✅ 基础索引创建
+
+---
+
 **维护者**: 数据库设计组
+**最后更新**: 2026-02-05
+
 **最后更新**: 2026-02-04

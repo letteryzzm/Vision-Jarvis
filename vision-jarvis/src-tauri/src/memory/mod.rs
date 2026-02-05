@@ -5,7 +5,6 @@
 use anyhow::Result;
 
 pub mod vector_store;
-
-// 未来将实现:
-// pub mod short_term;
-// pub mod long_term;
+pub mod short_term;
+pub mod long_term;
+pub mod scheduler;
