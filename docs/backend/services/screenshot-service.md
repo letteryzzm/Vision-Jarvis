@@ -1,8 +1,14 @@
 # 截屏服务 (ScreenshotService)
 
-> **最后更新**: 2026-02-04
-> **版本**: v1.0
-> **功能**: 屏幕截图采集、压缩、存储
+> **最后更新**: 2026-02-05
+> **版本**: v1.1
+> **功能**: 屏幕截图采集、存储管理、定时调度
+> **实现状态**: ✅ Phase 1 已实现
+
+**实现文件**:
+- `src-tauri/src/capture/mod.rs` - 截图捕获
+- `src-tauri/src/capture/scheduler.rs` - 定时调度
+- `src-tauri/src/capture/storage.rs` - 存储管理
 
 ---
 

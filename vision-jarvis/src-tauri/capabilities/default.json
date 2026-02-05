@@ -5,6 +5,14 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "notification:default",
+    "notification:allow-show",
+    "notification:allow-request-permission",
+    "autostart:default",
+    "fs:default",
+    "fs:allow-appdata-write-recursive",
+    "fs:allow-appdata-read-recursive",
+    "store:default"
   ]
 }

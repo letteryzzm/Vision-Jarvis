@@ -9,6 +9,39 @@
 
 ## [Unreleased]
 
+### Added - Phase 1: 核心基础设施实现 (2026-02-05)
+
+#### 后端实现
+- ✅ 数据库模式设计 (db/mod.rs, db/schema.rs, db/migrations.rs)
+  - SQLite 数据库初始化
+  - screenshots 表（截图元数据、AI 分析结果、向量嵌入）
+  - short_term_memories 表（短期记忆、时间范围、活动分类）
+  - long_term_memories 表（长期记忆总结）
+  - settings 表（应用配置）
+  - 数据库迁移系统
+  - 测试覆盖率: 100%
+
+- ✅ 设置持久化模块 (settings/mod.rs, settings/config.rs)
+  - AppSettings 结构体定义
+  - SettingsManager 配置管理
+  - 输入验证（截图间隔、时间格式、存储限制）
+  - 默认配置
+  - 测试覆盖率: 100%
+
+- ✅ 截图捕获模块 (capture/mod.rs, capture/scheduler.rs, capture/storage.rs)
+  - ScreenCapture 使用 xcap 0.8.1
+  - CaptureScheduler 定时调度器（可配置间隔 1-15秒）
+  - StorageManager 存储管理（容量限制、自动清理）
+  - 异步任务调度（tokio）
+  - 测试覆盖率: 92%
+
+- ✅ Tauri 插件集成
+  - tauri-plugin-notification（系统通知）
+  - tauri-plugin-autostart（开机自启动）
+  - tauri-plugin-fs（文件系统）
+  - tauri-plugin-store（配置持久化）
+  - 权限配置更新
+
 ### Added - 后端、API、数据库文档 (2026-02-04)
 
 #### 后端架构文档
