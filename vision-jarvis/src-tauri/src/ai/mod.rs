@@ -5,6 +5,7 @@
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use secrecy::{Secret, ExposeSecret};
 use std::time::Duration;
 
 pub mod analyzer;
@@ -13,7 +14,7 @@ pub mod embeddings;
 /// OpenAI API 客户端
 pub struct OpenAIClient {
     client: Client,
-    api_key: String,
+    api_key: Secret<String>,
     base_url: String,
 }
 
@@ -27,7 +28,7 @@ impl OpenAIClient {
 
         Ok(Self {
             client,
-            api_key,
+            api_key: Secret::new(api_key),
             base_url: "https://api.openai.com/v1".to_string(),
         })
     }
@@ -38,7 +39,7 @@ impl OpenAIClient {
 
         let response = self.client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -64,7 +65,7 @@ impl OpenAIClient {
 
         let response = self.client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()

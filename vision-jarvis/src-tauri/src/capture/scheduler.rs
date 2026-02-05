@@ -3,6 +3,7 @@
 /// 负责按配置间隔定时捕获截图
 
 use anyhow::Result;
+use log::error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{interval, Duration};
@@ -57,7 +58,7 @@ impl CaptureScheduler {
 
                 // 捕获截图
                 if let Err(e) = capture.capture_screenshot() {
-                    eprintln!("捕获截图失败: {}", e);
+                    error!("Screenshot capture failed: {}", e);
                 }
             }
         });

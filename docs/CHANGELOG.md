@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+### Fixed - 代码审查问题修复 (2026-02-05)
+
+#### HIGH 优先级修复
+- ✅ scheduler.rs: 替换 eprintln! 为结构化日志 (log crate)
+- ✅ ai/mod.rs: 使用 secrecy crate 保护 API key（防止意外泄露）
+- ✅ vector_store.rs: 修复 partial_cmp unwrap 可能导致的 panic（NaN 处理）
+
+#### 依赖更新
+- 新增 log = "0.4" (结构化日志)
+- 新增 secrecy = "0.8" (敏感数据保护)
+
 ### Added - Phase 2: AI 集成实现 (2026-02-05)
 
 #### AI 模块实现
