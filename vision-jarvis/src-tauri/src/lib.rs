@@ -6,8 +6,9 @@ mod ai;
 mod memory;
 mod notification;
 mod commands;
+mod storage;
 
-use commands::AppState;
+use commands::{AppState, AIConfigState};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -34,6 +35,9 @@ pub fn run() {
     // 创建应用状态
     let app_state = AppState::new(db, settings_manager);
 
+    // 创建 AI 配置状态
+    let ai_config_state = AIConfigState::new();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -44,6 +48,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(app_state)
+        .manage(ai_config_state)
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::health_check,
@@ -63,6 +68,21 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,
+            // 存储管理相关
+            commands::storage::get_storage_info,
+            commands::storage::list_files,
+            commands::storage::cleanup_old_files,
+            commands::storage::delete_file,
+            commands::storage::open_folder,
+            // AI 配置相关
+            commands::ai_config::get_ai_config_summary,
+            commands::ai_config::get_ai_config,
+            commands::ai_config::update_ai_api_key,
+            commands::ai_config::update_ai_provider_config,
+            commands::ai_config::set_active_ai_provider,
+            commands::ai_config::test_ai_connection,
+            commands::ai_config::get_available_ai_providers,
+            commands::ai_config::reset_ai_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

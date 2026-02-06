@@ -13,6 +13,10 @@ pub mod screenshot;
 pub mod memory;
 pub mod notification;
 pub mod settings;
+pub mod storage;
+pub mod ai_config;
+
+pub use ai_config::AIConfigState;
 
 /// 应用状态
 pub struct AppState {

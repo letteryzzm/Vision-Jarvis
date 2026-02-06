@@ -1,7 +1,7 @@
 # Vision-Jarvis 项目文档
 
-> **最后更新**: 2026-02-04
-> **文档版本**: v2.0
+> **最后更新**: 2026-02-06
+> **文档版本**: v2.1 (Phase 6 & 7)
 > **文档层级**: 层级 1 - 整体项目文档
 
 ---
@@ -38,6 +38,11 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 - [后端架构](../vision-jarvis/src-tauri/docs/technical/architecture/backend-architecture.md) ✅
 - [Tauri Commands API](../vision-jarvis/src-tauri/docs/technical/api/tauri-commands.md) ✅
 - [数据库设计](../vision-jarvis/src-tauri/docs/technical/database/schema.md) ✅
+- **Phase 6 & 7 新增**:
+  - [Storage Service](backend/services/storage-service.md) ✅ - 文件存储管理
+  - [AI Providers Service](backend/services/ai-providers-service.md) ✅ - AI提供商配置
+  - [Storage API](api/endpoints/storage.md) ✅ - 存储管理接口
+  - [AI Config API](api/endpoints/ai-config.md) ✅ - AI配置接口
 
 ### 项目管理
 - [主计划 (MASTER_PLAN)](planning/MASTER_PLAN.md) ✅
@@ -46,7 +51,15 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 
 ---
 
-## 📁 项目级文档
+### 项目级文档
+
+#### 后端服务（backend/services/）
+- [storage-service.md](backend/services/storage-service.md) ✅ - 文件存储管理服务
+- [ai-providers-service.md](backend/services/ai-providers-service.md) ✅ - AI提供商配置服务
+
+#### API 接口（api/endpoints/）
+- [storage.md](api/endpoints/storage.md) ✅ - 存储管理API（5个接口）
+- [ai-config.md](api/endpoints/ai-config.md) ✅ - AI配置API（8个接口）
 
 ### 规划文档（planning/）
 - [MASTER_PLAN.md](planning/MASTER_PLAN.md) ✅ - 任务跟踪和主计划
@@ -83,13 +96,18 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 
 | 日期 | 文档 | 层级 | 变更类型 | 说明 |
 |------|------|------|---------|------|
+| 2026-02-06 | Phase 6 & 7 文档 | 后端/API | 新增 | 文件管理和AI配置系统文档 |
+| 2026-02-06 | Storage Service | 后端 | 新增 | 文件存储管理服务文档（350行） |
+| 2026-02-06 | AI Providers | 后端 | 新增 | AI提供商配置服务文档（480行） |
+| 2026-02-06 | Storage API | API | 新增 | 5个存储管理接口文档 |
+| 2026-02-06 | AI Config API | API | 新增 | 8个AI配置接口文档 |
 | 2026-02-04 | 文档架构重构 | 整体 | 重构 | 实现三层文档架构（整体/前端/后端） |
 | 2026-02-04 | 前端文档迁移 | 前端 | 新增 | 创建 /vision-jarvis/src/docs/ |
 | 2026-02-04 | 后端文档迁移 | 后端 | 新增 | 创建 /vision-jarvis/src-tauri/docs/ |
 | 2026-02-02 | API 扩展 | 后端 | 新增 | 添加 Todo、通知等 API |
 | 2026-02-02 | 前端设计 | 前端 | 更新 | 新增双日期选择功能 |
 
-查看完整变更记录: [CHANGELOG.md](CHANGELOG.md)（待创建）
+查看完整变更记录: [CHANGELOG.md](CHANGELOG.md) ✅
 
 ---
 
@@ -119,6 +137,9 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 - **后端如何开发?** → [后端文档](../vision-jarvis/src-tauri/docs/README.md)
 - **API 如何调用?** → [Tauri Commands](../vision-jarvis/src-tauri/docs/technical/api/tauri-commands.md)
 - **数据库设计?** → [数据库模型](../vision-jarvis/src-tauri/docs/technical/database/schema.md)
+- **文件管理系统?** → [Storage Service](backend/services/storage-service.md) + [Storage API](api/endpoints/storage.md)
+- **AI配置管理?** → [AI Providers Service](backend/services/ai-providers-service.md) + [AI Config API](api/endpoints/ai-config.md)
+- **最新变更?** → [CHANGELOG.md](CHANGELOG.md)
 - **最新测试结果?** → [测试报告](testing/test-reports/)
 - **项目搭建过程?** → [SETUP_SUMMARY.md](SETUP_SUMMARY.md)
 
@@ -160,4 +181,4 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 
 **文档中心维护者**: Vision-Jarvis 开发团队
 **文档架构**: 三层架构（整体/前端/后端）
-**最后更新**: 2026-02-04
+**最后更新**: 2026-02-06 (Phase 6 & 7 完成)

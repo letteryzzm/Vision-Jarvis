@@ -10,6 +10,7 @@ use std::time::Duration;
 
 pub mod analyzer;
 pub mod embeddings;
+pub mod providers;
 
 /// OpenAI API 客户端
 pub struct OpenAIClient {
