@@ -1,0 +1,124 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Ball from '../components/FloatingBall/Ball.astro';
+import Header from '../components/FloatingBall/Header.astro';
+import Asker from '../components/FloatingBall/Asker.astro';
+---
+
+<Layout>
+  <div id="floating-container" class="w-full h-full">
+    <!-- Ball State (default) -->
+    <div id="ball-state">
+      <Ball />
+    </div>
+
+    <!-- Header State (on hover) -->
+    <div id="header-state" class="hidden">
+      <Header />
+    </div>
+
+    <!-- Asker State (on click) -->
+    <div id="asker-state" class="hidden">
+      <Asker />
+    </div>
+  </div>
+
+  <script>
+    import { invoke } from '@tauri-apps/api/core';
+
+    type WindowState = 'ball' | 'header' | 'asker';
+    let currentState: WindowState = 'ball';
+    let hoverTimer: NodeJS.Timeout | null = null;
+
+    const ballState = document.getElementById('ball-state');
+    const headerState = document.getElementById('header-state');
+    const askerState = document.getElementById('asker-state');
+    const floatingBall = document.getElementById('floating-ball');
+
+    // 切换到指定状态
+    async function switchTo(state: WindowState) {
+      if (currentState === state) return;
+
+      currentState = state;
+
+      // 隐藏所有状态
+      ballState?.classList.add('hidden');
+      headerState?.classList.add('hidden');
+      askerState?.classList.add('hidden');
+
+      // 显示目标状态
+      switch (state) {
+        case 'ball':
+          ballState?.classList.remove('hidden');
+          await invoke('collapse_to_ball');
+          break;
+        case 'header':
+          headerState?.classList.remove('hidden');
+          await invoke('expand_to_header');
+          break;
+        case 'asker':
+          askerState?.classList.remove('hidden');
+          await invoke('expand_to_asker');
+          break;
+      }
+    }
+
+    // 鼠标悬停 -> Header
+    floatingBall?.addEventListener('mouseenter', () => {
+      if (currentState !== 'ball') return;
+
+      hoverTimer = setTimeout(() => {
+        switchTo('header');
+      }, 200); // 200ms 延迟
+    });
+
+    floatingBall?.addEventListener('mouseleave', () => {
+      if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    });
+
+    // Header 鼠标离开 -> Ball
+    headerState?.addEventListener('mouseleave', () => {
+      if (currentState === 'header') {
+        setTimeout(() => {
+          if (currentState === 'header') {
+            switchTo('ball');
+          }
+        }, 300);
+      }
+    });
+
+    // 点击悬浮球 -> Asker
+    floatingBall?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      switchTo('asker');
+    });
+
+    // 点击外部 -> Ball
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (!askerState?.contains(target) && !headerState?.contains(target)) {
+        if (currentState !== 'ball') {
+          switchTo('ball');
+        }
+      }
+    });
+
+    // Memory 按钮
+    document.getElementById('memory-btn')?.addEventListener('click', async () => {
+      await invoke('open_memory_window');
+    });
+
+    // Popup 按钮
+    document.getElementById('popup-btn')?.addEventListener('click', async () => {
+      await invoke('open_popup_setting_window');
+    });
+
+    // 关闭 Asker
+    document.getElementById('close-asker')?.addEventListener('click', () => {
+      switchTo('ball');
+    });
+  </script>
+</Layout>
