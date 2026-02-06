@@ -83,6 +83,12 @@ pub fn run() {
             commands::ai_config::test_ai_connection,
             commands::ai_config::get_available_ai_providers,
             commands::ai_config::reset_ai_config,
+            // 窗口管理相关
+            commands::window::open_memory_window,
+            commands::window::open_popup_setting_window,
+            commands::window::expand_to_header,
+            commands::window::expand_to_asker,
+            commands::window::collapse_to_ball,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

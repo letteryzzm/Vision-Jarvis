@@ -15,6 +15,7 @@ pub mod notification;
 pub mod settings;
 pub mod storage;
 pub mod ai_config;
+pub mod window;
 
 pub use ai_config::AIConfigState;
 

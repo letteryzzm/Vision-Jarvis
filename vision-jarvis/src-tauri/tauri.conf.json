@@ -23,14 +23,8 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": true,
-        "x": null,
-        "y": null,
-        "center": false,
-        "position": {
-          "type": "Physical",
-          "x": 1800,
-          "y": 50
-        }
+        "x": 1800,
+        "y": 50
       }
     ],
     "security": {
