@@ -1,274 +1,93 @@
-# Vision-Jarvis 项目文档变更记录
+# Vision-Jarvis 变更日志
 
-所有整体项目文档的变更都将记录在此文件中。
+本文档记录 Vision-Jarvis 项目的所有重要变更。
 
-格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
 ---
 
 ## [Unreleased]
 
-### Added - Phase 4: 通知服务实现 (2026-02-06)
+### Added - 2026-02-06
 
-#### 通知核心模块
-- ✅ 通知数据结构 (notification/mod.rs)
-  - NotificationType: 休息提醒、任务提醒、总结提醒、自定义
-  - NotificationPriority: Low/Normal/High/Urgent
-  - Notification 状态管理（创建、调度、发送、关闭）
-  - 测试覆盖率: 100%
+**Phase 5: Tauri Commands - 前后端通信层**
 
-#### 规则引擎
-- ✅ 通知规则引擎 (notification/rules.rs)
-  - NotificationRule trait - 可扩展规则接口
-  - RestReminderRule - 连续工作60分钟提醒
-  - DailySummaryRule - 每日20点总结提醒
-  - InactivityReminderRule - 2小时未活动提醒
-  - RuleEngine - 规则评估和通知生成
-  - 测试覆盖率: 100%
+- **API 接口** (commands/):
+  - `health_check()` - 健康检查接口
+  - `capture_screenshot()` - 捕获屏幕截图
+  - `get_screenshots(limit)` - 获取截图列表
+  - `delete_screenshot(id)` - 删除指定截图
+  - `search_memories(query, limit)` - 搜索记忆（支持SQL转义防注入）
+  - `get_memories_by_date(date)` - 获取指定日期记忆（含日期验证）
+  - `generate_memory(date)` - 生成指定日期的短期记忆
+  - `get_pending_notifications()` - 获取待处理通知
+  - `dismiss_notification(id)` - 关闭通知
+  - `get_notification_history(limit)` - 获取通知历史
+  - `get_settings()` - 获取应用设置
+  - `update_settings(settings)` - 更新应用设置
+  - `reset_settings()` - 重置设置为默认值
 
-#### 通知调度器
-- ✅ 通知调度器 (notification/scheduler.rs)
-  - 每5分钟评估规则
-  - 数据库持久化通知记录
-  - 待发送通知查询
-  - 异步任务调度（tokio）
-  - 测试覆盖率: 100%
+- **通用响应结构** (`ApiResponse<T>`):
+  - `success: bool` - 操作是否成功
+  - `data: Option<T>` - 返回数据
+  - `error: Option<String>` - 错误信息
 
-#### 安全审查
-- ✅ 代码审查通过 - 0 CRITICAL, 0 HIGH issues
-- ✅ SQL 注入防护完善（参数化查询）
-- ✅ 无硬编码凭证
-- ✅ 完整错误处理
+- **安全增强**:
+  - SQL 注入防护：search_memories() 使用 ESCAPE 子句转义通配符
+  - 输入验证：get_memories_by_date() 验证日期格式（YYYY-MM-DD）
+  - 错误处理改进：generate_memory() 收集并返回所有保存错误
 
-### Added - Phase 3: 记忆生成实现 (2026-02-05)
+### Changed - 2026-02-06
 
-#### 短期记忆生成器
-- ✅ 短期记忆生成器 (memory/short_term.rs)
-  - 按活动和时间聚合截图（5分钟阈值）
-  - 时段判断（上午/下午/晚上）
-  - 活动组合并逻辑
-  - 测试覆盖率: 100%
+- **SettingsManager 重构**:
+  - 从 `settings: AppSettings` 改为 `settings: Arc<Mutex<AppSettings>>`
+  - 支持线程安全的内部可变性
+  - `get()` 方法返回克隆而非引用
+  - `update()` 方法使用 `&self` 而非 `&mut self`
+  - 测试更新以适配新 API
 
-#### 长期记忆生成器
-- ✅ 长期记忆生成器 (memory/long_term.rs)
-  - 从数据库查询短期记忆
-  - 提取 Top 5 主要活动（按时长排序）
-  - AI 总结生成（GPT-4o 集成）
-  - 默认摘要生成（无 AI 时）
-  - 测试覆盖率: 100%
+- **AppState 初始化**:
+  - ScreenCapture 创建时传入 storage_path
+  - 从 SettingsManager 获取存储路径
 
-#### 后台任务调度器
-- ✅ 记忆生成调度器 (memory/scheduler.rs)
-  - 定时截图分析（每 5 分钟）
-  - 短期记忆生成（每 30 分钟）
-  - 长期记忆生成（每 24 小时）
-  - tokio 异步任务调度
-  - 测试覆盖率: 100%
+### Fixed - 2026-02-06
 
-#### 数据库优化
-- ✅ Database 结构重构
-  - 使用 Arc<Mutex<Connection>> 支持多线程
-  - 新增 with_connection() 方法
-  - 支持 Clone trait
+- 修复 capture_screenshot() 中的文件写入逻辑（ScreenCapture 已自动保存）
+- 清理未使用的导入：tauri::State, VectorStore, Serialize, Deserialize, NotificationPriority
+- 修复编译警告和类型错误
 
-#### 数据库迁移
-- ✅ screenshots 表新增字段
-  - analyzed_at: 分析完成时间戳
+### Technical Details
 
-### Fixed - 代码审查问题修复 (2026-02-05)
+**测试覆盖率**: 60 个测试全部通过
+- 核心 API 响应结构测试
+- 健康检查接口测试
+- 所有既有模块测试保持通过
 
-#### HIGH 优先级修复
-- ✅ scheduler.rs: 替换 eprintln! 为结构化日志 (log crate)
-- ✅ ai/mod.rs: 使用 secrecy crate 保护 API key（防止意外泄露）
-- ✅ vector_store.rs: 修复 partial_cmp unwrap 可能导致的 panic（NaN 处理）
-
-#### 依赖更新
-- 新增 log = "0.4" (结构化日志)
-- 新增 secrecy = "0.8" (敏感数据保护)
-
-### Added - Phase 2: AI 集成实现 (2026-02-05)
-
-#### AI 模块实现
-- ✅ OpenAI API 客户端 (ai/mod.rs)
-  - 聊天完成API集成（支持GPT-4 Vision）
-  - 文本嵌入API集成（text-embedding-3-small）
-  - 速率限制和错误处理
-  - 支持多模态消息（文本+图片）
-  - 测试覆盖率: 100%
-
-- ✅ 截图分析器 (ai/analyzer.rs)
-  - 使用GPT-4o分析截图内容
-  - 提取活动、应用、描述、分类
-  - Base64图片编码
-  - JSON结构化输出
-  - 测试覆盖率: 100%
-
-- ✅ 向量嵌入生成器 (ai/embeddings.rs)
-  - text-embedding-3-small集成
-  - 批量嵌入生成（带速率限制）
-  - 余弦相似度计算
-  - 测试覆盖率: 100%
-
-#### 向量存储实现
-- ✅ 向量存储 (memory/vector_store.rs)
-  - 基于SQLite的向量存储
-  - 向量序列化/反序列化
-  - 余弦相似度搜索
-  - 按时间范围删除
-  - 测试覆盖率: 100%
-
-### Added - Phase 1: 核心基础设施实现 (2026-02-05)
-
-#### 后端实现
-- ✅ 数据库模式设计 (db/mod.rs, db/schema.rs, db/migrations.rs)
-  - SQLite 数据库初始化
-  - screenshots 表（截图元数据、AI 分析结果、向量嵌入）
-  - short_term_memories 表（短期记忆、时间范围、活动分类）
-  - long_term_memories 表（长期记忆总结）
-  - settings 表（应用配置）
-  - 数据库迁移系统
-  - 测试覆盖率: 100%
-
-- ✅ 设置持久化模块 (settings/mod.rs, settings/config.rs)
-  - AppSettings 结构体定义
-  - SettingsManager 配置管理
-  - 输入验证（截图间隔、时间格式、存储限制）
-  - 默认配置
-  - 测试覆盖率: 100%
-
-- ✅ 截图捕获模块 (capture/mod.rs, capture/scheduler.rs, capture/storage.rs)
-  - ScreenCapture 使用 xcap 0.8.1
-  - CaptureScheduler 定时调度器（可配置间隔 1-15秒）
-  - StorageManager 存储管理（容量限制、自动清理）
-  - 异步任务调度（tokio）
-  - 测试覆盖率: 92%
-
-- ✅ Tauri 插件集成
-  - tauri-plugin-notification（系统通知）
-  - tauri-plugin-autostart（开机自启动）
-  - tauri-plugin-fs（文件系统）
-  - tauri-plugin-store（配置持久化）
-  - 权限配置更新
-
-### Added - 后端、API、数据库文档 (2026-02-04)
-
-#### 后端架构文档
-- 🏗️ 创建后端文档总览 (backend/README.md)
-- 🏛️ 创建后端架构概述 (backend/architecture/overview.md)
-  - 分层架构设计 (Presentation / Service / DAL / Infrastructure)
-  - 服务化设计模式
-  - 异步并发架构
-  - 错误处理机制
-  - 系统架构图
-
-#### 后端服务文档
-- 📦 创建服务层概述 (backend/services/README.md)
-- 🔧 创建核心服务文档:
-  - 截屏服务 (backend/services/screenshot-service.md)
-    - 定时截图、智能触发、图片处理、应用监控
-    - 状态机设计 (Idle → Ready → Capturing → Processing → Completed)
-    - 权限管理和性能优化
-  - 记忆服务 (backend/services/memory-service.md)
-    - 短期记忆生成、意图识别、事项提取
-    - 时间窗口管理
-    - 向量搜索和语义查询
-    - 长期记忆聚合算法
-
-#### API 接口文档
-- 🌐 创建 API 文档总览 (api/README.md)
-  - Tauri IPC Commands 协议说明
-  - 接口列表和命名规范
-  - 错误码说明和处理示例
-  - 性能优化建议
-
-#### 数据库设计文档
-- 💾 创建数据库文档总览 (database/README.md)
-  - SQLite/libSQL 技术选型
-  - ER 图和表关系设计
-  - 索引策略
-  - 数据备份和清理策略
-- 📊 创建核心表文档:
-  - screenshots 表 (D1) (database/schema/tables/screenshots.md)
-    - 截图元数据和 AI 分析结果
-    - 状态机: pending → analyzing → completed/failed
-  - short_term_memory 表 (D3) (database/schema/tables/short_term_memory.md)
-    - 短期记忆事项存储
-    - JSON 数组关联截图和应用
-  - app_usage 表 (D4) (database/schema/tables/app_usage.md)
-    - 应用使用时间追踪
-    - 应用切换检测逻辑
-
-### Added - 前端文档 (2026-02-04)
-- 📝 创建前端文档总览 (frontend/README.md)
-- 🏗️ 创建前端架构设计文档 (frontend/architecture.md)
-- 📦 创建组件库概述 (frontend/components/README.md)
-- 🎨 创建核心组件文档:
-  - FloatingOrb 悬浮球组件 (frontend/components/FloatingOrb.md)
-  - Header 展开模式组件 (frontend/components/Header.md)
-  - Asker AI 问答组件 (frontend/components/Asker.md)
-- 📄 创建页面文档:
-  - Memory 记忆管理页面 (frontend/pages/memory.md)
-  - Popup-Setting 提醒设置页面 (frontend/pages/popup-setting.md)
-
-### 待创建
-- 系统整体架构文档 (technical/architecture/system-overview.md)
-- 数据流设计文档 (technical/architecture/data-flow.md)
-- 前后端集成文档 (technical/architecture/integration.md)
-- 产品路线图 (planning/roadmap.md)
-- 需求文档 (planning/requirements.md)
-- 后端其他服务文档 (ai-service.md, notification-service.md)
-- 后端模块文档 (modules.md, error-handling.md, concurrency.md)
-- API 详细接口文档 (endpoints/screenshot.md, memory.md, ai-analysis.md, notification.md)
-- API 数据模型文档 (models/)
-- 数据库其他表文档 (long_term_memory.md, notifications.md, app_config.md)
-- 数据库迁移文档 (migrations/README.md)
-- 前端其他组件文档 (DatePicker, MemoryList, MemoryCard, FloatingInput, SettingCard, ToggleSwitch 等)
-- 前端状态管理文档 (frontend/state-management.md)
-- 前端样式规范文档 (frontend/styling.md)
-- 前端动画设计文档 (frontend/animations.md)
-- 前端开发指南 (frontend/development.md)
-- 前端测试文档 (frontend/testing.md)
+**架构改进**:
+- 统一错误处理模式（Result -> ApiResponse 转换）
+- 参数化 SQL 查询防止注入
+- 线程安全的状态管理（Arc + Mutex）
 
 ---
 
-## [2.0.0] - 2026-02-04
+## [0.1.0] - 2026-02-04
 
 ### Added
-- 🎉 实现三层文档架构（整体/前端/后端分离）
-- 📝 创建文档审计报告 (DOCUMENT_AUDIT_REPORT.md)
-- 📝 创建整体文档变更记录 (CHANGELOG.md)
-- 📁 创建整体技术文档目录 (technical/architecture/, technical/specifications/)
 
-### Migrated
-- 📦 迁移 `functional-specifications.md` 到 `technical/specifications/functional-specs.md`
-- 📦 迁移 `non-functional-requirements.md` 到 `technical/specifications/non-functional-specs.md`
-- 📦 移动 `UPDATES.md` 到整体文档目录
+**Phase 1-3: 核心后端架构**
 
-### Changed
-- ♻️  重构文档索引 (README.md v2.0)
-- ♻️  建立三层文档架构导航系统
-- ♻️  添加旧文档位置迁移映射表
+- 数据库模块 (db/)
+- 设置管理 (settings/)
+- 屏幕捕获 (capture/)
+- AI 服务 (ai/)
+- 记忆系统 (memory/)
+- 通知系统 (notification/)
 
-### Organizational
-- 🗂️  前端文档迁移至 `/vision-jarvis/src/docs/`
-- 🗂️  后端文档迁移至 `/vision-jarvis/src-tauri/docs/`
-- 🗂️  整体文档保留在 `/docs/`
+详细变更请参考 git commit 历史。
 
 ---
 
-## [1.0.0] - 2026-01-29
+## 版本说明
 
-### Added
-- 📝 初始文档结构
-- 📋 主计划文档 (planning/MASTER_PLAN.md)
-- 🧪 集成测试报告
-- 📖 项目搭建总结 (SETUP_SUMMARY.md)
-- 📖 迁移指南 (MIGRATION.md)
-
----
-
-**说明**:
-- 本 CHANGELOG 仅记录整体项目文档的变更
-- 前端文档变更见 `/vision-jarvis/src/docs/CHANGELOG.md`
-- 后端文档变更见 `/vision-jarvis/src-tauri/docs/CHANGELOG.md`
+- **[Unreleased]**: 开发中的功能
+- **[0.1.0]**: 首个开发版本

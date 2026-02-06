@@ -4,37 +4,41 @@
 
 use anyhow::{Result, Context};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 pub mod config;
 pub use config::AppSettings;
 
 /// 设置管理器
 pub struct SettingsManager {
-    settings: AppSettings,
+    settings: Arc<Mutex<AppSettings>>,
 }
 
 impl SettingsManager {
     /// 创建新的设置管理器
     pub fn new() -> Self {
         Self {
-            settings: AppSettings::default(),
+            settings: Arc::new(Mutex::new(AppSettings::default())),
         }
     }
 
     /// 从配置加载设置
     pub fn with_settings(settings: AppSettings) -> Self {
-        Self { settings }
+        Self {
+            settings: Arc::new(Mutex::new(settings)),
+        }
     }
 
-    /// 获取当前设置的引用
-    pub fn get(&self) -> &AppSettings {
-        &self.settings
+    /// 获取当前设置的副本
+    pub fn get(&self) -> AppSettings {
+        self.settings.lock().unwrap().clone()
     }
 
     /// 更新设置
-    pub fn update(&mut self, settings: AppSettings) -> Result<()> {
-        self.validate_settings(&settings)?;
-        self.settings = settings;
+    pub fn update(&self, new_settings: AppSettings) -> Result<()> {
+        self.validate_settings(&new_settings)?;
+        let mut settings = self.settings.lock().unwrap();
+        *settings = new_settings;
         Ok(())
     }
 
@@ -92,17 +96,20 @@ impl SettingsManager {
 
     /// 获取存储路径
     pub fn get_storage_path(&self) -> PathBuf {
-        PathBuf::from(&self.settings.storage_path)
+        let settings = self.settings.lock().unwrap();
+        PathBuf::from(&settings.storage_path)
     }
 
     /// 是否启用记忆功能
     pub fn is_memory_enabled(&self) -> bool {
-        self.settings.memory_enabled
+        let settings = self.settings.lock().unwrap();
+        settings.memory_enabled
     }
 
     /// 获取截图间隔（秒）
     pub fn get_capture_interval(&self) -> u8 {
-        self.settings.capture_interval_seconds
+        let settings = self.settings.lock().unwrap();
+        settings.capture_interval_seconds
     }
 }
 
@@ -162,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_update_settings() {
-        let mut manager = SettingsManager::new();
+        let manager = SettingsManager::new();
         let mut new_settings = AppSettings::default();
         new_settings.capture_interval_seconds = 10;
 
@@ -172,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_update_invalid_settings() {
-        let mut manager = SettingsManager::new();
+        let manager = SettingsManager::new();
         let mut invalid_settings = AppSettings::default();
         invalid_settings.capture_interval_seconds = 0;
 
