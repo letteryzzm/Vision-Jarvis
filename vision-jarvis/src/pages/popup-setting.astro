@@ -1,0 +1,148 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout>
+  <div class="min-h-screen bg-app p-12">
+    <div class="max-w-4xl mx-auto">
+      <!-- Header -->
+      <div class="mb-12">
+        <h1 class="text-4xl font-bold text-primary mb-2">提醒设置</h1>
+        <p class="text-lg text-muted">配置您的智能提醒和通知</p>
+      </div>
+
+      <!-- Cards Grid -->
+      <div class="grid gap-6">
+        <!-- Card 1: 启动提醒 -->
+        <div class="p-8 bg-card rounded-[24px] border border-primary">
+          <div class="flex items-start justify-between mb-6">
+            <div>
+              <h2 class="text-2xl font-semibold text-primary mb-2">启动提醒</h2>
+              <p class="text-sm text-muted">应用启动时的提醒设置</p>
+            </div>
+            <div class="memory-toggle w-16 h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer">
+              <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Auto Start -->
+            <div class="flex items-center justify-between p-4 bg-input rounded-xl">
+              <span class="text-sm text-secondary">开机自动启动</span>
+              <div class="memory-toggle w-12 h-6 bg-secondary rounded-full flex items-center px-0.5 cursor-pointer">
+                <div class="w-5 h-5 bg-white rounded-full transition-all duration-300"></div>
+              </div>
+            </div>
+
+            <!-- Startup Message -->
+            <div>
+              <label class="text-sm text-secondary block mb-2">启动提醒文本</label>
+              <textarea
+                class="w-full h-24 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
+                placeholder="输入启动提醒文本..."
+              >If today were the last day of my life, would I want to do what I am about to do today?</textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: 定时提醒 -->
+        <div class="p-8 bg-card rounded-[24px] border border-primary">
+          <div class="flex items-start justify-between mb-6">
+            <div>
+              <h2 class="text-2xl font-semibold text-primary mb-2">定时提醒</h2>
+              <p class="text-sm text-muted">设置定期提醒通知</p>
+            </div>
+            <div class="memory-toggle w-16 h-8 gradient-success rounded-full flex items-center justify-end px-1 cursor-pointer">
+              <div class="w-6 h-6 bg-white rounded-full"></div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Time Range -->
+            <div>
+              <label class="text-sm text-secondary block mb-3">工作时间段</label>
+              <div class="flex items-center gap-4">
+                <input
+                  type="time"
+                  value="09:00"
+                  class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                />
+                <span class="text-muted">至</span>
+                <input
+                  type="time"
+                  value="21:00"
+                  class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                />
+              </div>
+            </div>
+
+            <!-- Interval -->
+            <div>
+              <div class="flex justify-between text-sm mb-3">
+                <span class="text-secondary">提醒间隔</span>
+                <span class="text-info">每 30 分钟</span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="120"
+                value="30"
+                step="5"
+                class="w-full"
+              />
+              <div class="flex justify-between text-xs text-muted mt-1">
+                <span>5分钟</span>
+                <span>120分钟</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: 空闲检测 -->
+        <div class="p-8 bg-card rounded-[24px] border border-primary">
+          <div class="flex items-start justify-between mb-6">
+            <div>
+              <h2 class="text-2xl font-semibold text-primary mb-2">空闲检测</h2>
+              <p class="text-sm text-muted">检测屏幕无变化并提醒</p>
+            </div>
+            <div class="memory-toggle w-16 h-8 gradient-success rounded-full flex items-center justify-end px-1 cursor-pointer">
+              <div class="w-6 h-6 bg-white rounded-full"></div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Idle Duration -->
+            <div>
+              <div class="flex justify-between text-sm mb-3">
+                <span class="text-secondary">空闲判定时长</span>
+                <span class="text-info">15 分钟</span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="60"
+                value="15"
+                step="5"
+                class="w-full"
+              />
+              <div class="flex justify-between text-xs text-muted mt-1">
+                <span>5分钟</span>
+                <span>60分钟</span>
+              </div>
+            </div>
+
+            <!-- Reminder Type -->
+            <div>
+              <label class="text-sm text-secondary block mb-2">提醒内容</label>
+              <select class="w-full h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary">
+                <option>AI 智能建议</option>
+                <option>休息提醒</option>
+                <option>自定义文本</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
