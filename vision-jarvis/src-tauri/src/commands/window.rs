@@ -64,42 +64,42 @@ pub async fn open_popup_setting_window(app: AppHandle) -> ApiResponse<String> {
 /// 展开浮球到 Header 状态 (360x72)
 #[tauri::command]
 pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
-    match app.get_webview_window("main") {
+    match app.get_webview_window("floating-ball") {
         Some(window) => {
             if let Err(e) = window.set_size(PhysicalSize::new(360, 72)) {
                 return ApiResponse::error(format!("Failed to expand to header: {}", e));
             }
             ApiResponse::success("Expanded to header".to_string())
         }
-        None => ApiResponse::error("Main window not found".to_string()),
+        None => ApiResponse::error("Floating ball window not found".to_string()),
     }
 }
 
 /// 展开浮球到 Asker 状态 (360x480)
 #[tauri::command]
 pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
-    match app.get_webview_window("main") {
+    match app.get_webview_window("floating-ball") {
         Some(window) => {
             if let Err(e) = window.set_size(PhysicalSize::new(360, 480)) {
                 return ApiResponse::error(format!("Failed to expand to asker: {}", e));
             }
             ApiResponse::success("Expanded to asker".to_string())
         }
-        None => ApiResponse::error("Main window not found".to_string()),
+        None => ApiResponse::error("Floating ball window not found".to_string()),
     }
 }
 
 /// 收起浮球到圆球状态 (64x64)
 #[tauri::command]
 pub async fn collapse_to_ball(app: AppHandle) -> ApiResponse<String> {
-    match app.get_webview_window("main") {
+    match app.get_webview_window("floating-ball") {
         Some(window) => {
             if let Err(e) = window.set_size(PhysicalSize::new(64, 64)) {
                 return ApiResponse::error(format!("Failed to collapse to ball: {}", e));
             }
             ApiResponse::success("Collapsed to ball".to_string())
         }
-        None => ApiResponse::error("Main window not found".to_string()),
+        None => ApiResponse::error("Floating ball window not found".to_string()),
     }
 }
 

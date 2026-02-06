@@ -1,0 +1,123 @@
+---
+// AI助手对话面板
+---
+
+<div
+  id="asker-expanded"
+  class="fixed bottom-8 right-8 z-50 hidden
+         w-[360px] h-[480px] bg-card rounded-[24px]
+         border border-primary overflow-hidden
+         flex flex-col transition-all duration-300 opacity-0"
+>
+  <!-- Header -->
+  <div class="h-14 border-b border-primary px-5 flex items-center justify-between flex-shrink-0">
+    <h3 class="text-white text-base font-semibold">记忆助手</h3>
+    <button
+      id="close-asker"
+      class="w-5 h-5 text-disabled hover:text-white transition-colors cursor-pointer"
+      aria-label="关闭"
+    >
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M18 6 6 18M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Chat Area -->
+  <div id="chat-messages" class="flex-1 p-5 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+    <!-- 示例消息 -->
+    <div class="flex justify-end">
+      <div class="gradient-primary rounded-[18px] px-3 py-3 max-w-[80%]">
+        <p class="text-white text-sm">今天我做了什么？</p>
+      </div>
+    </div>
+    
+    <div class="flex justify-start">
+      <div class="bg-secondary rounded-[18px] px-3 py-3 max-w-[80%]">
+        <p class="text-secondary text-sm">根据你的截图记录，今天上午你主要在编写代码，下午参加了两个会议。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Area -->
+  <div class="h-14 border-t border-primary px-3 py-0 flex items-center gap-2 flex-shrink-0">
+    <input
+      id="chat-input"
+      type="text"
+      placeholder="问问我的记忆..."
+      class="flex-1 h-10 px-3 bg-secondary rounded-[24px]
+             text-white text-sm placeholder:text-placeholder
+             border-none outline-none"
+    />
+    <button
+      id="send-btn"
+      class="w-10 h-10 rounded-[24px] gradient-primary
+             flex items-center justify-center cursor-pointer
+             hover:scale-105 transition-transform"
+      aria-label="发送"
+    >
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="m3 3 3 9-3 9 19-9Z"/>
+        <path d="M6 12h16"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  const closeBtn = document.getElementById('close-asker');
+  const askerPanel = document.getElementById('asker-expanded');
+  const sendBtn = document.getElementById('send-btn');
+  const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+  const chatMessages = document.getElementById('chat-messages');
+
+  closeBtn?.addEventListener('click', () => {
+    askerPanel?.classList.add('hidden', 'opacity-0');
+    window.dispatchEvent(new CustomEvent('close-assistant'));
+  });
+
+  sendBtn?.addEventListener('click', async () => {
+    const message = chatInput?.value.trim();
+    if (!message) return;
+
+    // 添加用户消息
+    const userMsg = document.createElement('div');
+    userMsg.className = 'flex justify-end';
+    userMsg.innerHTML = `
+      <div class="gradient-primary rounded-[18px] px-3 py-3 max-w-[80%]">
+        <p class="text-white text-sm">${message}</p>
+      </div>
+    `;
+    chatMessages?.appendChild(userMsg);
+
+    // 清空输入框
+    if (chatInput) chatInput.value = '';
+
+    // 滚动到底部
+    chatMessages?.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+
+    // TODO: 调用 Tauri API 发送消息到后端
+    // const { invoke } = await import('@tauri-apps/api/core');
+    // const response = await invoke('search_memories', { query: message });
+    
+    // 模拟AI回复
+    setTimeout(() => {
+      const aiMsg = document.createElement('div');
+      aiMsg.className = 'flex justify-start';
+      aiMsg.innerHTML = `
+        <div class="bg-secondary rounded-[18px] px-3 py-3 max-w-[80%]">
+          <p class="text-secondary text-sm">正在搜索相关记忆...</p>
+        </div>
+      `;
+      chatMessages?.appendChild(aiMsg);
+      chatMessages?.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+    }, 500);
+  });
+
+  // 回车发送
+  chatInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      sendBtn?.click();
+    }
+  });
+</script>

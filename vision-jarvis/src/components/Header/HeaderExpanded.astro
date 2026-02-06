@@ -1,0 +1,87 @@
+---
+// 展开的Header面板
+---
+
+<div
+  id="header-expanded"
+  class="fixed bottom-8 right-8 z-40 hidden
+         w-[360px] h-[72px] bg-card rounded-[40px]
+         border border-primary px-5 py-0
+         flex items-center gap-4 justify-between
+         transition-all duration-300 opacity-0"
+>
+  <!-- Memory Toggle -->
+  <div class="flex items-center gap-4">
+    <button
+      id="memory-toggle"
+      class="w-[100px] h-10 rounded-[20px] gradient-success
+             relative cursor-pointer transition-all duration-300
+             flex items-center p-[4px]"
+      data-active="true"
+      aria-label="切换记忆功能"
+    >
+      <div
+        class="toggle-knob w-8 h-8 bg-white rounded-full
+               transition-transform duration-300 translate-x-[60px]"
+      ></div>
+    </button>
+  </div>
+
+  <!-- Memory Button -->
+  <button
+    class="h-10 px-4 bg-secondary rounded-[20px]
+           border border-secondary flex items-center gap-2
+           hover:border-info transition-colors cursor-pointer"
+    onclick="window.location.href='/memory'"
+  >
+    <svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+    </svg>
+    <span class="text-info text-sm font-medium">记忆</span>
+  </button>
+
+  <!-- Popup Button -->
+  <button
+    class="h-10 px-4 bg-secondary rounded-[20px]
+           border border-secondary flex items-center gap-2
+           hover:border-info transition-colors cursor-pointer"
+    onclick="window.location.href='/popup-setting'"
+  >
+    <svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+    <span class="text-info text-sm font-medium">提醒</span>
+  </button>
+</div>
+
+<script>
+  const memoryToggle = document.getElementById('memory-toggle');
+  const knob = memoryToggle?.querySelector('.toggle-knob');
+
+  memoryToggle?.addEventListener('click', () => {
+    const isActive = memoryToggle.getAttribute('data-active') === 'true';
+    
+    if (isActive) {
+      memoryToggle.setAttribute('data-active', 'false');
+      memoryToggle.classList.remove('gradient-success');
+      memoryToggle.classList.add('bg-[#2A2A30]');
+      knob?.classList.remove('translate-x-[60px]');
+      knob?.classList.add('translate-x-0');
+    } else {
+      memoryToggle.setAttribute('data-active', 'true');
+      memoryToggle.classList.remove('bg-[#2A2A30]');
+      memoryToggle.classList.add('gradient-success');
+      knob?.classList.remove('translate-x-0');
+      knob?.classList.add('translate-x-[60px]');
+    }
+
+    // 调用 Tauri API 更新设置
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke('update_settings', {
+        settings: { memory_enabled: !isActive }
+      });
+    });
+  });
+</script>
