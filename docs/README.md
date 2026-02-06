@@ -1,7 +1,7 @@
 # Vision-Jarvis 项目文档
 
 > **最后更新**: 2026-02-06
-> **文档版本**: v2.1 (Phase 6 & 7)
+> **文档版本**: v2.2 (Frontend V2: Multi-Window Architecture)
 > **文档层级**: 层级 1 - 整体项目文档
 
 ---
@@ -24,10 +24,12 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 - [前后端集成](technical/architecture/integration.md)（待创建）
 - [前端文档入口](../vision-jarvis/src/docs/README.md) ✅
 - [后端文档入口](../vision-jarvis/src-tauri/docs/README.md) ✅
+- **NEW** [Frontend V2: Multi-Window Architecture](frontend/architecture-v2-floating-windows.md) ✅
 
 ### 前端开发者
 - [前端文档总览](frontend/README.md) ✅
-- [前端架构设计](frontend/architecture.md) ✅
+- [前端架构设计 V1](frontend/architecture.md) ✅ (单页面架构，已废弃)
+- **NEW** [前端架构设计 V2](frontend/architecture-v2-floating-windows.md) ✅ (多窗口架构，当前版本)
 - [组件库概述](frontend/components/README.md) ✅
 - [页面文档](frontend/pages/) ✅
   - [Memory 页面](frontend/pages/memory.md)
@@ -96,6 +98,7 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 
 | 日期 | 文档 | 层级 | 变更类型 | 说明 |
 |------|------|------|---------|------|
+| 2026-02-06 | Frontend V2 Architecture | 前端 | 重大重构 | 多窗口悬浮球架构，从单页面重构为多窗口系统 |
 | 2026-02-06 | Phase 6 & 7 文档 | 后端/API | 新增 | 文件管理和AI配置系统文档 |
 | 2026-02-06 | Storage Service | 后端 | 新增 | 文件存储管理服务文档（350行） |
 | 2026-02-06 | AI Providers | 后端 | 新增 | AI提供商配置服务文档（480行） |
@@ -133,6 +136,7 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 ### 我想了解...
 
 - **项目整体规划?** → [主计划](planning/MASTER_PLAN.md)
+- **新的多窗口架构?** → [Frontend V2 Architecture](frontend/architecture-v2-floating-windows.md) 🆕
 - **前端如何开发?** → [前端文档](../vision-jarvis/src/docs/README.md)
 - **后端如何开发?** → [后端文档](../vision-jarvis/src-tauri/docs/README.md)
 - **API 如何调用?** → [Tauri Commands](../vision-jarvis/src-tauri/docs/technical/api/tauri-commands.md)
@@ -181,4 +185,5 @@ Vision-Jarvis 采用**三层文档架构**（整体/前端/后端分离）:
 
 **文档中心维护者**: Vision-Jarvis 开发团队
 **文档架构**: 三层架构（整体/前端/后端）
-**最后更新**: 2026-02-06 (Phase 6 & 7 完成)
+**最后更新**: 2026-02-06 (Frontend V2: Multi-Window Architecture + Phase 6 & 7 完成)
+**当前架构版本**: Frontend V2.0 (Multi-Window Floating Ball System)
