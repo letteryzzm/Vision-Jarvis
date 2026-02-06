@@ -101,4 +101,9 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #00D4FF;
   }
+
+  /* Performance Optimizations */
+  .transition-all {
+    will-change: transform, opacity;
+  }
 }

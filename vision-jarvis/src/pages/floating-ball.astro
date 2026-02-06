@@ -35,6 +35,18 @@ import Asker from '../components/FloatingBall/Asker.astro';
     const askerState = document.getElementById('asker-state');
     const floatingBall = document.getElementById('floating-ball');
 
+    // 防抖函数
+    function debounce<T extends (...args: any[]) => any>(
+      func: T,
+      wait: number
+    ): (...args: Parameters<T>) => void {
+      let timeout: NodeJS.Timeout | null = null;
+      return (...args: Parameters<T>) => {
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+      };
+    }
+
     // 切换到指定状态
     async function switchTo(state: WindowState) {
       if (currentState === state) return;
@@ -63,12 +75,19 @@ import Asker from '../components/FloatingBall/Asker.astro';
       }
     }
 
+    // 使用防抖优化 hover 事件
+    const debouncedExpand = debounce(() => {
+      if (currentState === 'ball') {
+        switchTo('header');
+      }
+    }, 200);
+
     // 鼠标悬停 -> Header
     floatingBall?.addEventListener('mouseenter', () => {
       if (currentState !== 'ball') return;
 
       hoverTimer = setTimeout(() => {
-        switchTo('header');
+        debouncedExpand();
       }, 200); // 200ms 延迟
     });
 
