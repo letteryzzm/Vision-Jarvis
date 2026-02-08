@@ -55,9 +55,15 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("floating-ball") {
                 // 获取主显示器尺寸
                 if let Ok(Some(monitor)) = window.primary_monitor() {
-                    let size = monitor.size();
+                    let physical_size = monitor.size();
+                    let scale_factor = monitor.scale_factor();
+
+                    // 转换为逻辑像素
+                    let logical_width = physical_size.width as f64 / scale_factor;
+                    let logical_height = physical_size.height as f64 / scale_factor;
+
                     // 计算右上角位置：距右边缘 20px，距顶部 50px
-                    let x = (size.width as f64 - 64.0 - 20.0).max(0.0);
+                    let x = (logical_width - 64.0 - 20.0).max(0.0);
                     let y = 50.0;
 
                     let _ = window.set_position(LogicalPosition::new(x, y));
