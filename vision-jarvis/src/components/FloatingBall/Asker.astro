@@ -8,11 +8,12 @@
   style="width: 360px; height: 480px;"
 >
   <!-- Header -->
-  <div class="h-16 px-6 flex items-center justify-between border-b border-primary">
+  <div class="h-16 px-6 flex items-center justify-between border-b border-primary" data-tauri-drag-region>
     <h2 class="text-lg font-semibold text-primary">AI 助手</h2>
     <button
       id="close-asker"
       class="w-8 h-8 rounded-full hover:bg-secondary transition-colors flex items-center justify-center"
+      style="-webkit-app-region: no-drag;"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
         <path d="M18 6 6 18M6 6l12 12"/>

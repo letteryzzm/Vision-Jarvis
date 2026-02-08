@@ -6,9 +6,10 @@
   id="header-expanded"
   class="bg-card rounded-[40px] border border-primary flex items-center gap-4 px-5 transition-all duration-300"
   style="width: 360px; height: 72px;"
+  data-tauri-drag-region
 >
   <!-- Memory Toggle -->
-  <div class="memory-toggle w-[100px] h-10 gradient-success rounded-[20px] flex items-center justify-end px-1 cursor-pointer">
+  <div class="memory-toggle w-[100px] h-10 gradient-success rounded-[20px] flex items-center justify-end px-1 cursor-pointer" style="-webkit-app-region: no-drag;">
     <div class="w-8 h-8 bg-white rounded-full"></div>
   </div>
 
@@ -16,6 +17,7 @@
   <button
     id="memory-btn"
     class="h-10 bg-secondary rounded-[20px] border border-secondary px-4 flex items-center gap-2 hover:border-glow transition-colors"
+    style="-webkit-app-region: no-drag;"
   >
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00D4FF" stroke-width="2">
       <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -28,6 +30,7 @@
   <button
     id="popup-btn"
     class="h-10 bg-secondary rounded-[20px] border border-secondary px-4 flex items-center gap-2 hover:border-glow transition-colors"
+    style="-webkit-app-region: no-drag;"
   >
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00D4FF" stroke-width="2">
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>

@@ -66,10 +66,39 @@ pub async fn open_popup_setting_window(app: AppHandle) -> ApiResponse<String> {
 pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
         Some(window) => {
-            // 使用逻辑像素，在 Retina 显示器上会自动转换为物理像素
-            if let Err(e) = window.set_size(LogicalSize::new(360.0, 72.0)) {
-                return ApiResponse::error(format!("Failed to expand to header: {}", e));
+            // 获取当前位置和屏幕信息
+            let current_pos = match window.outer_position() {
+                Ok(pos) => pos,
+                Err(e) => return ApiResponse::error(format!("Failed to get position: {}", e)),
+            };
+
+            // 获取屏幕信息以计算新位置
+            let monitor = match window.primary_monitor() {
+                Ok(Some(m)) => m,
+                _ => return ApiResponse::error("Failed to get monitor info".to_string()),
+            };
+
+            let physical_size = monitor.size();
+            let scale_factor = monitor.scale_factor();
+            let screen_width = physical_size.width as f64 / scale_factor;
+
+            // 计算新位置：保持右边缘对齐
+            // 当前窗口宽度64，展开后360，需要向左移动 (360-64) = 296
+            let new_width = 360.0;
+            let margin_right = 20.0;
+            let new_x = (screen_width - new_width - margin_right).max(0.0);
+            let new_y = current_pos.y as f64 / scale_factor; // 保持Y位置不变
+
+            // 先设置大小
+            if let Err(e) = window.set_size(tauri::LogicalSize::new(new_width, 72.0)) {
+                return ApiResponse::error(format!("Failed to resize: {}", e));
             }
+
+            // 再调整位置
+            if let Err(e) = window.set_position(tauri::LogicalPosition::new(new_x, new_y)) {
+                return ApiResponse::error(format!("Failed to reposition: {}", e));
+            }
+
             ApiResponse::success("Expanded to header".to_string())
         }
         None => ApiResponse::error("Floating ball window not found".to_string()),
@@ -81,10 +110,37 @@ pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
 pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
         Some(window) => {
-            // 使用逻辑像素
-            if let Err(e) = window.set_size(LogicalSize::new(360.0, 480.0)) {
-                return ApiResponse::error(format!("Failed to expand to asker: {}", e));
+            // 获取当前位置和屏幕信息
+            let current_pos = match window.outer_position() {
+                Ok(pos) => pos,
+                Err(e) => return ApiResponse::error(format!("Failed to get position: {}", e)),
+            };
+
+            let monitor = match window.primary_monitor() {
+                Ok(Some(m)) => m,
+                _ => return ApiResponse::error("Failed to get monitor info".to_string()),
+            };
+
+            let physical_size = monitor.size();
+            let scale_factor = monitor.scale_factor();
+            let screen_width = physical_size.width as f64 / scale_factor;
+
+            // 计算新位置：保持右边缘对齐
+            let new_width = 360.0;
+            let margin_right = 20.0;
+            let new_x = (screen_width - new_width - margin_right).max(0.0);
+            let new_y = current_pos.y as f64 / scale_factor;
+
+            // 先设置大小
+            if let Err(e) = window.set_size(tauri::LogicalSize::new(new_width, 480.0)) {
+                return ApiResponse::error(format!("Failed to resize: {}", e));
             }
+
+            // 再调整位置
+            if let Err(e) = window.set_position(tauri::LogicalPosition::new(new_x, new_y)) {
+                return ApiResponse::error(format!("Failed to reposition: {}", e));
+            }
+
             ApiResponse::success("Expanded to asker".to_string())
         }
         None => ApiResponse::error("Floating ball window not found".to_string()),
@@ -96,10 +152,33 @@ pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
 pub async fn collapse_to_ball(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
         Some(window) => {
-            // 使用逻辑像素
-            if let Err(e) = window.set_size(LogicalSize::new(64.0, 64.0)) {
-                return ApiResponse::error(format!("Failed to collapse to ball: {}", e));
+            // 获取屏幕信息
+            let monitor = match window.primary_monitor() {
+                Ok(Some(m)) => m,
+                _ => return ApiResponse::error("Failed to get monitor info".to_string()),
+            };
+
+            let physical_size = monitor.size();
+            let scale_factor = monitor.scale_factor();
+            let screen_width = physical_size.width as f64 / scale_factor;
+
+            // 计算球状态位置：右上角
+            let ball_width = 64.0;
+            let margin_right = 20.0;
+            let margin_top = 50.0;
+            let new_x = (screen_width - ball_width - margin_right).max(0.0);
+            let new_y = margin_top;
+
+            // 先设置大小
+            if let Err(e) = window.set_size(tauri::LogicalSize::new(ball_width, 64.0)) {
+                return ApiResponse::error(format!("Failed to resize: {}", e));
             }
+
+            // 再调整位置回到右上角
+            if let Err(e) = window.set_position(tauri::LogicalPosition::new(new_x, new_y)) {
+                return ApiResponse::error(format!("Failed to reposition: {}", e));
+            }
+
             ApiResponse::success("Collapsed to ball".to_string())
         }
         None => ApiResponse::error("Floating ball window not found".to_string()),
