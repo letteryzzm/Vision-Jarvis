@@ -9,6 +9,7 @@ mod commands;
 mod storage;
 
 use commands::{AppState, AIConfigState};
+use tauri::{Manager, LogicalPosition};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -52,17 +53,14 @@ pub fn run() {
         .setup(|app| {
             // 设置悬浮球窗口位置到右上角
             if let Some(window) = app.get_webview_window("floating-ball") {
-                use tauri::{LogicalPosition, Manager};
-
                 // 获取主显示器尺寸
                 if let Ok(Some(monitor)) = window.primary_monitor() {
-                    if let Some(size) = monitor.size() {
-                        // 计算右上角位置：距右边缘 20px，距顶部 50px
-                        let x = (size.width as f64 - 64.0 - 20.0).max(0.0);
-                        let y = 50.0;
+                    let size = monitor.size();
+                    // 计算右上角位置：距右边缘 20px，距顶部 50px
+                    let x = (size.width as f64 - 64.0 - 20.0).max(0.0);
+                    let y = 50.0;
 
-                        let _ = window.set_position(LogicalPosition::new(x, y));
-                    }
+                    let _ = window.set_position(LogicalPosition::new(x, y));
                 }
             }
 
