@@ -1,26 +1,31 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import '../styles/global.css';
 import Ball from '../components/FloatingBall/Ball.astro';
 import Header from '../components/FloatingBall/Header.astro';
 import Asker from '../components/FloatingBall/Asker.astro';
 ---
 
-<Layout>
-  <div id="floating-container" class="w-full h-full">
-    <!-- Ball State (default) -->
-    <div id="ball-state">
-      <Ball />
-    </div>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vision Jarvis</title>
+</head>
+<body style="margin: 0; padding: 0; background: transparent; overflow: hidden;">
+  <!-- Ball State (default) -->
+  <div id="ball-state">
+    <Ball />
+  </div>
 
-    <!-- Header State (on hover) -->
-    <div id="header-state" class="hidden">
-      <Header />
-    </div>
+  <!-- Header State (on hover) -->
+  <div id="header-state" class="hidden">
+    <Header />
+  </div>
 
-    <!-- Asker State (on click) -->
-    <div id="asker-state" class="hidden">
-      <Asker />
-    </div>
+  <!-- Asker State (on click) -->
+  <div id="asker-state" class="hidden">
+    <Asker />
   </div>
 
   <script>
@@ -28,89 +33,106 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
     type WindowState = 'ball' | 'header' | 'asker';
     let currentState: WindowState = 'ball';
-    let hoverTimer: NodeJS.Timeout | null = null;
+    let isTransitioning: boolean = false;
+    let hoverTimer: number | null = null;
 
-    const ballState = document.getElementById('ball-state');
-    const headerState = document.getElementById('header-state');
-    const askerState = document.getElementById('asker-state');
-    const floatingBall = document.getElementById('floating-ball');
+    // 获取状态元素
+    function getStateElement(state: WindowState): HTMLElement | null {
+      return document.getElementById(`${state}-state`);
+    }
 
-    // 防抖函数
-    function debounce<T extends (...args: any[]) => any>(
-      func: T,
-      wait: number
-    ): (...args: Parameters<T>) => void {
-      let timeout: NodeJS.Timeout | null = null;
-      return (...args: Parameters<T>) => {
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
+    // 获取 resize 命令
+    function getResizeCommand(state: WindowState): string {
+      const commands = {
+        'ball': 'collapse_to_ball',
+        'header': 'expand_to_header',
+        'asker': 'expand_to_asker'
       };
+      return commands[state];
     }
 
-    // 切换到指定状态
+    // 延迟函数
+    function delay(ms: number): Promise<void> {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 切换到指定状态（带动画）
     async function switchTo(state: WindowState) {
-      if (currentState === state) return;
+      if (currentState === state || isTransitioning) return;
 
-      currentState = state;
+      isTransitioning = true;
+      const previousState = currentState;
 
-      // 隐藏所有状态
-      ballState?.classList.add('hidden');
-      headerState?.classList.add('hidden');
-      askerState?.classList.add('hidden');
+      try {
+        // 1. 淡出当前状态
+        const currentEl = getStateElement(previousState);
+        currentEl?.classList.add('transitioning-out');
 
-      // 显示目标状态
-      switch (state) {
-        case 'ball':
-          ballState?.classList.remove('hidden');
-          await invoke('collapse_to_ball');
-          break;
-        case 'header':
-          headerState?.classList.remove('hidden');
-          await invoke('expand_to_header');
-          break;
-        case 'asker':
-          askerState?.classList.remove('hidden');
-          await invoke('expand_to_asker');
-          break;
+        await delay(150);
+
+        // 2. 调整窗口大小
+        await invoke(getResizeCommand(state));
+
+        // 3. 切换 DOM 显示
+        currentEl?.classList.add('hidden');
+        currentEl?.classList.remove('transitioning-out');
+
+        const nextEl = getStateElement(state);
+        nextEl?.classList.remove('hidden');
+        nextEl?.classList.add('transitioning-in');
+
+        await delay(150);
+
+        nextEl?.classList.remove('transitioning-in');
+
+        currentState = state;
+      } catch (error) {
+        console.error('Transition failed:', error);
+        // Rollback
+        currentState = previousState;
+      } finally {
+        isTransitioning = false;
       }
     }
 
-    // 使用防抖优化 hover 事件
-    const debouncedExpand = debounce(() => {
-      if (currentState === 'ball') {
-        switchTo('header');
-      }
-    }, 200);
-
-    // 鼠标悬停 -> Header
-    floatingBall?.addEventListener('mouseenter', () => {
+    // Ball 状态悬停事件
+    const ballState = getStateElement('ball');
+    ballState?.addEventListener('mouseenter', () => {
       if (currentState !== 'ball') return;
 
-      hoverTimer = setTimeout(() => {
-        debouncedExpand();
-      }, 200); // 200ms 延迟
+      hoverTimer = window.setTimeout(() => {
+        switchTo('header');
+      }, 200);
     });
 
-    floatingBall?.addEventListener('mouseleave', () => {
+    ballState?.addEventListener('mouseleave', () => {
       if (hoverTimer) {
         clearTimeout(hoverTimer);
         hoverTimer = null;
       }
     });
 
-    // Header 鼠标离开 -> Ball
-    headerState?.addEventListener('mouseleave', () => {
-      if (currentState === 'header') {
-        setTimeout(() => {
-          if (currentState === 'header') {
-            switchTo('ball');
-          }
-        }, 300);
+    // Header 状态事件
+    const headerState = getStateElement('header');
+    headerState?.addEventListener('mouseenter', () => {
+      // 鼠标进入 Header，取消折叠计时器
+      if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
       }
     });
 
+    headerState?.addEventListener('mouseleave', () => {
+      // 鼠标离开 Header，300ms 后折叠
+      hoverTimer = window.setTimeout(() => {
+        if (currentState === 'header') {
+          switchTo('ball');
+        }
+      }, 300);
+    });
+
     // 点击悬浮球 -> Asker
-    floatingBall?.addEventListener('click', (e) => {
+    document.getElementById('floating-ball')?.addEventListener('click', (e) => {
       e.stopPropagation();
       switchTo('asker');
     });
@@ -118,7 +140,20 @@ import Asker from '../components/FloatingBall/Asker.astro';
     // 点击外部 -> Ball
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (!askerState?.contains(target) && !headerState?.contains(target)) {
+      const askerEl = getStateElement('asker');
+      const headerEl = getStateElement('header');
+
+      if (!askerEl?.contains(target) && !headerEl?.contains(target)) {
+        if (currentState !== 'ball') {
+          switchTo('ball');
+        }
+      }
+    });
+
+    // 键盘事件
+    document.addEventListener('keydown', (e) => {
+      // ESC: 折叠回 Ball
+      if (e.key === 'Escape') {
         if (currentState !== 'ball') {
           switchTo('ball');
         }
@@ -127,12 +162,20 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
     // Memory 按钮
     document.getElementById('memory-btn')?.addEventListener('click', async () => {
-      await invoke('open_memory_window');
+      try {
+        await invoke('open_memory_window');
+      } catch (error) {
+        console.error('Failed to open memory window:', error);
+      }
     });
 
     // Popup 按钮
     document.getElementById('popup-btn')?.addEventListener('click', async () => {
-      await invoke('open_popup_setting_window');
+      try {
+        await invoke('open_popup_setting_window');
+      } catch (error) {
+        console.error('Failed to open popup-setting window:', error);
+      }
     });
 
     // 关闭 Asker
@@ -140,4 +183,43 @@ import Asker from '../components/FloatingBall/Asker.astro';
       switchTo('ball');
     });
   </script>
-</Layout>
+
+  <style is:global>
+    /* 状态容器样式 */
+    #ball-state,
+    #header-state,
+    #asker-state {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 隐藏状态 */
+    .hidden {
+      display: none !important;
+    }
+
+    /* 过渡动画 */
+    .transitioning-out {
+      opacity: 0;
+      transform: scale(0.95);
+      transition: opacity 150ms ease-out, transform 150ms ease-out;
+    }
+
+    .transitioning-in {
+      opacity: 0;
+      transform: scale(1.05);
+      animation: fadeIn 150ms ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+</body>
+</html>
