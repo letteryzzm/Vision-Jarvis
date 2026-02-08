@@ -2,7 +2,7 @@
 ///
 /// 管理多窗口系统：Memory窗口、Popup-Setting窗口、浮球状态切换
 
-use tauri::{AppHandle, Manager, PhysicalSize, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, LogicalSize, WebviewWindowBuilder};
 use super::ApiResponse;
 
 /// 打开 Memory 窗口
@@ -66,7 +66,8 @@ pub async fn open_popup_setting_window(app: AppHandle) -> ApiResponse<String> {
 pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
         Some(window) => {
-            if let Err(e) = window.set_size(PhysicalSize::new(360, 72)) {
+            // 使用逻辑像素，在 Retina 显示器上会自动转换为物理像素
+            if let Err(e) = window.set_size(LogicalSize::new(360.0, 72.0)) {
                 return ApiResponse::error(format!("Failed to expand to header: {}", e));
             }
             ApiResponse::success("Expanded to header".to_string())
@@ -80,7 +81,8 @@ pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
 pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
         Some(window) => {
-            if let Err(e) = window.set_size(PhysicalSize::new(360, 480)) {
+            // 使用逻辑像素
+            if let Err(e) = window.set_size(LogicalSize::new(360.0, 480.0)) {
                 return ApiResponse::error(format!("Failed to expand to asker: {}", e));
             }
             ApiResponse::success("Expanded to asker".to_string())
@@ -94,7 +96,8 @@ pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
 pub async fn collapse_to_ball(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
         Some(window) => {
-            if let Err(e) = window.set_size(PhysicalSize::new(64, 64)) {
+            // 使用逻辑像素
+            if let Err(e) = window.set_size(LogicalSize::new(64.0, 64.0)) {
                 return ApiResponse::error(format!("Failed to collapse to ball: {}", e));
             }
             ApiResponse::success("Collapsed to ball".to_string())
