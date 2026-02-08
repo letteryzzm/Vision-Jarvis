@@ -60,12 +60,17 @@ pub fn run() {
 
                     // 转换为逻辑像素
                     let logical_width = physical_size.width as f64 / scale_factor;
-                    let logical_height = physical_size.height as f64 / scale_factor;
 
                     // 计算右上角位置：距右边缘 20px，距顶部 50px
-                    let x = (logical_width - 64.0 - 20.0).max(0.0);
-                    let y = 50.0;
+                    // 确保完全在屏幕内
+                    let window_width = 64.0;
+                    let margin_right = 20.0;
+                    let margin_top = 50.0;
 
+                    let x = (logical_width - window_width - margin_right).max(0.0);
+                    let y = margin_top;
+
+                    println!("Setting window position: x={}, y={} (screen width={})", x, y, logical_width);
                     let _ = window.set_position(LogicalPosition::new(x, y));
                 }
             }
