@@ -8,3 +8,4 @@ pub mod short_term;
 pub mod long_term;
 pub mod scheduler;
 pub mod activity_grouper;
+pub mod markdown_generator;

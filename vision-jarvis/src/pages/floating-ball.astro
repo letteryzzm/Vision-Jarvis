@@ -160,101 +160,10 @@ import Asker from '../components/FloatingBall/Asker.astro';
     }
 
     // ========================================
-    // 事件处理
+    // 事件处理 - 在 DOMContentLoaded 中注册
     // ========================================
 
-    // Ball Zone 悬停 -> Header
-    const ballZone = getBallZone();
-    ballZone?.addEventListener('mouseenter', () => {
-      if (currentState !== 'ball' || !isInitialized) return;
-
-      hoverTimer = window.setTimeout(() => {
-        switchTo('header');
-      }, 200);
-    });
-
-    ballZone?.addEventListener('mouseleave', () => {
-      if (hoverTimer) {
-        clearTimeout(hoverTimer);
-        hoverTimer = null;
-      }
-    });
-
-    // Expansion Zone 鼠标事件
-    const expansionZone = getExpansionZone();
-
-    expansionZone?.addEventListener('mouseenter', () => {
-      // 鼠标进入 Expansion Zone，取消折叠计时器
-      if (hoverTimer) {
-        clearTimeout(hoverTimer);
-        hoverTimer = null;
-      }
-    });
-
-    expansionZone?.addEventListener('mouseleave', () => {
-      // 鼠标离开 Expansion Zone，300ms 后折叠
-      hoverTimer = window.setTimeout(() => {
-        if (currentState === 'header') {
-          switchTo('ball');
-        }
-      }, 300);
-    });
-
-    // 点击 Ball -> Asker
-    document.getElementById('floating-ball')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      switchTo('asker');
-    });
-
-    // 点击外部 -> Ball
-    document.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const expZone = getExpansionZone();
-      const bZone = getBallZone();
-
-      // 如果点击的不在 ball zone 或 expansion zone 内，则折叠
-      if (!expZone?.contains(target) && !bZone?.contains(target)) {
-        if (currentState !== 'ball') {
-          switchTo('ball');
-        }
-      }
-    });
-
-    // 键盘事件: ESC 折叠
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (currentState !== 'ball') {
-          switchTo('ball');
-        }
-      }
-    });
-
-    // ========================================
-    // 按钮事件
-    // ========================================
-
-    // Memory 按钮
-    document.getElementById('memory-btn')?.addEventListener('click', async () => {
-      try {
-        await invoke('open_memory_window');
-      } catch (error) {
-        console.error('Failed to open memory window:', error);
-      }
-    });
-
-    // Popup 按钮（暂时保留，后续改为 Settings）
-    document.getElementById('popup-btn')?.addEventListener('click', async () => {
-      try {
-        await invoke('open_popup_setting_window');
-      } catch (error) {
-        console.error('Failed to open popup-setting window:', error);
-      }
-    });
-
-    // 关闭 Asker
-    document.getElementById('close-asker')?.addEventListener('click', () => {
-      switchTo('ball');
-    });
+    // 暂时不注册事件，等待 DOMContentLoaded
 
     // ========================================
     // 初始化
@@ -293,11 +202,113 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
       console.log('[Floating Ball] Initialization complete');
 
-      // 标记初始化完成，允许 hover 事件
+      // 500ms 后启用 hover，避免初始化时误触发
       setTimeout(() => {
         isInitialized = true;
         console.log('[Floating Ball] Hover events enabled');
-      }, 500); // 500ms 后启用 hover，避免初始化时误触发
+
+        // ========================================
+        // 注册所有事件监听器
+        // ========================================
+
+        // Ball Zone 悬停 -> Header
+        const ballZone = getBallZone();
+        ballZone?.addEventListener('mouseenter', () => {
+          console.log('[Floating Ball] Ball Zone mouseenter - currentState:', currentState);
+
+          if (currentState !== 'ball') {
+            console.log('[Floating Ball] Not expanding - already expanded');
+            return;
+          }
+
+          console.log('[Floating Ball] Starting hover timer (200ms)...');
+          hoverTimer = window.setTimeout(() => {
+            console.log('[Floating Ball] Hover timer triggered, switching to header');
+            switchTo('header');
+          }, 200);
+        });
+
+        ballZone?.addEventListener('mouseleave', () => {
+          if (hoverTimer) {
+            clearTimeout(hoverTimer);
+            hoverTimer = null;
+          }
+        });
+
+        // Expansion Zone 鼠标事件
+        const expansionZone = getExpansionZone();
+
+        expansionZone?.addEventListener('mouseenter', () => {
+          // 鼠标进入 Expansion Zone，取消折叠计时器
+          if (hoverTimer) {
+            clearTimeout(hoverTimer);
+            hoverTimer = null;
+          }
+        });
+
+        expansionZone?.addEventListener('mouseleave', () => {
+          // 鼠标离开 Expansion Zone，300ms 后折叠
+          hoverTimer = window.setTimeout(() => {
+            if (currentState === 'header') {
+              switchTo('ball');
+            }
+          }, 300);
+        });
+
+        // 点击 Ball -> Asker
+        document.getElementById('floating-ball')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          switchTo('asker');
+        });
+
+        // 点击外部 -> Ball
+        document.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          const expZone = getExpansionZone();
+          const bZone = getBallZone();
+
+          // 如果点击的不在 ball zone 或 expansion zone 内，则折叠
+          if (!expZone?.contains(target) && !bZone?.contains(target)) {
+            if (currentState !== 'ball') {
+              switchTo('ball');
+            }
+          }
+        });
+
+        // 键盘事件: ESC 折叠
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            if (currentState !== 'ball') {
+              switchTo('ball');
+            }
+          }
+        });
+
+        // Memory 按钮
+        document.getElementById('memory-btn')?.addEventListener('click', async () => {
+          try {
+            await invoke('open_memory_window');
+          } catch (error) {
+            console.error('Failed to open memory window:', error);
+          }
+        });
+
+        // Popup 按钮（暂时保留，后续改为 Settings）
+        document.getElementById('popup-btn')?.addEventListener('click', async () => {
+          try {
+            await invoke('open_popup_setting_window');
+          } catch (error) {
+            console.error('Failed to open popup-setting window:', error);
+          }
+        });
+
+        // 关闭 Asker
+        document.getElementById('close-asker')?.addEventListener('click', () => {
+          switchTo('ball');
+        });
+
+        console.log('[Floating Ball] All event listeners registered');
+      }, 500);
     });
   </script>
 
