@@ -11,6 +11,11 @@ export default defineConfig({
   // 构建输出目录
   outDir: './dist',
 
+  // 禁用开发工具栏
+  devToolbar: {
+    enabled: false,
+  },
+
   // 开发服务器配置
   server: {
     port: 4321,  // 与 tauri.conf.json 中的 devUrl 一致

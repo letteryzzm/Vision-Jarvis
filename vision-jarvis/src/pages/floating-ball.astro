@@ -1,0 +1,263 @@
+---
+import '../styles/global.css';
+import Ball from '../components/FloatingBall/Ball.astro';
+import Header from '../components/FloatingBall/Header.astro';
+import Asker from '../components/FloatingBall/Asker.astro';
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vision Jarvis</title>
+</head>
+<body style="margin: 0; padding: 0; background: transparent; overflow: hidden; width: 64px; height: 64px;">
+  <!-- Ball State (default) -->
+  <div id="ball-state">
+    <Ball />
+  </div>
+
+  <!-- Header State (on hover) -->
+  <div id="header-state" class="hidden">
+    <Header />
+  </div>
+
+  <!-- Asker State (on click) -->
+  <div id="asker-state" class="hidden">
+    <Asker />
+  </div>
+
+  <script>
+    import { invoke } from '@tauri-apps/api/core';
+
+    type WindowState = 'ball' | 'header' | 'asker';
+    let currentState: WindowState = 'ball';
+    let isTransitioning: boolean = false;
+    let hoverTimer: number | null = null;
+
+    // 获取状态元素
+    function getStateElement(state: WindowState): HTMLElement | null {
+      return document.getElementById(`${state}-state`);
+    }
+
+    // 获取 resize 命令
+    function getResizeCommand(state: WindowState): string {
+      const commands = {
+        'ball': 'collapse_to_ball',
+        'header': 'expand_to_header',
+        'asker': 'expand_to_asker'
+      };
+      return commands[state];
+    }
+
+    // 延迟函数
+    function delay(ms: number): Promise<void> {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 切换到指定状态（带动画）
+    async function switchTo(state: WindowState) {
+      if (currentState === state || isTransitioning) return;
+
+      isTransitioning = true;
+      const previousState = currentState;
+
+      try {
+        // 1. 淡出当前状态
+        const currentEl = getStateElement(previousState);
+        currentEl?.classList.add('transitioning-out');
+
+        await delay(150);
+
+        // 2. 调整窗口大小
+        await invoke(getResizeCommand(state));
+
+        // 3. 更新 HTML/body 尺寸以匹配新窗口大小
+        const sizes = {
+          'ball': { width: 64, height: 64 },
+          'header': { width: 360, height: 72 },
+          'asker': { width: 360, height: 480 }
+        };
+        const size = sizes[state];
+        document.documentElement.style.width = `${size.width}px`;
+        document.documentElement.style.height = `${size.height}px`;
+        document.body.style.width = `${size.width}px`;
+        document.body.style.height = `${size.height}px`;
+
+        // 4. 切换 DOM 显示
+        currentEl?.classList.add('hidden');
+        currentEl?.classList.remove('transitioning-out');
+
+        const nextEl = getStateElement(state);
+        nextEl?.classList.remove('hidden');
+        nextEl?.classList.add('transitioning-in');
+
+        await delay(150);
+
+        nextEl?.classList.remove('transitioning-in');
+
+        currentState = state;
+      } catch (error) {
+        console.error('Transition failed:', error);
+        // Rollback
+        currentState = previousState;
+      } finally {
+        isTransitioning = false;
+      }
+    }
+
+    // Ball 状态悬停事件
+    const ballState = getStateElement('ball');
+    ballState?.addEventListener('mouseenter', () => {
+      if (currentState !== 'ball') return;
+
+      hoverTimer = window.setTimeout(() => {
+        switchTo('header');
+      }, 200);
+    });
+
+    ballState?.addEventListener('mouseleave', () => {
+      if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    });
+
+    // Header 状态事件
+    const headerState = getStateElement('header');
+    headerState?.addEventListener('mouseenter', () => {
+      // 鼠标进入 Header，取消折叠计时器
+      if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    });
+
+    headerState?.addEventListener('mouseleave', () => {
+      // 鼠标离开 Header，300ms 后折叠
+      hoverTimer = window.setTimeout(() => {
+        if (currentState === 'header') {
+          switchTo('ball');
+        }
+      }, 300);
+    });
+
+    // 点击悬浮球 -> Asker
+    document.getElementById('floating-ball')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      switchTo('asker');
+    });
+
+    // 点击外部 -> Ball
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const askerEl = getStateElement('asker');
+      const headerEl = getStateElement('header');
+
+      if (!askerEl?.contains(target) && !headerEl?.contains(target)) {
+        if (currentState !== 'ball') {
+          switchTo('ball');
+        }
+      }
+    });
+
+    // 键盘事件
+    document.addEventListener('keydown', (e) => {
+      // ESC: 折叠回 Ball
+      if (e.key === 'Escape') {
+        if (currentState !== 'ball') {
+          switchTo('ball');
+        }
+      }
+    });
+
+    // Memory 按钮
+    document.getElementById('memory-btn')?.addEventListener('click', async () => {
+      try {
+        await invoke('open_memory_window');
+      } catch (error) {
+        console.error('Failed to open memory window:', error);
+      }
+    });
+
+    // Popup 按钮
+    document.getElementById('popup-btn')?.addEventListener('click', async () => {
+      try {
+        await invoke('open_popup_setting_window');
+      } catch (error) {
+        console.error('Failed to open popup-setting window:', error);
+      }
+    });
+
+    // 关闭 Asker
+    document.getElementById('close-asker')?.addEventListener('click', () => {
+      switchTo('ball');
+    });
+  </script>
+
+  <style is:global>
+    /* 全局样式 */
+    html {
+      width: 64px;
+      height: 64px;
+      overflow: hidden;
+    }
+
+    /* 状态容器样式 */
+    #ball-state,
+    #header-state,
+    #asker-state {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Ball 状态容器 */
+    #ball-state {
+      width: 64px;
+      height: 64px;
+    }
+
+    /* Header 状态容器 */
+    #header-state {
+      width: 360px;
+      height: 72px;
+    }
+
+    /* Asker 状态容器 */
+    #asker-state {
+      width: 360px;
+      height: 480px;
+    }
+
+    /* 隐藏状态 */
+    .hidden {
+      display: none !important;
+    }
+
+    /* 过渡动画 */
+    .transitioning-out {
+      opacity: 0;
+      transform: scale(0.95);
+      transition: opacity 150ms ease-out, transform 150ms ease-out;
+    }
+
+    .transitioning-in {
+      opacity: 0;
+      transform: scale(1.05);
+      animation: fadeIn 150ms ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+</body>
+</html>

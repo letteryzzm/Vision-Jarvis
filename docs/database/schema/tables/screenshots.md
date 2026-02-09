@@ -1,9 +1,10 @@
 # screenshots 表 (D1) - 截图记录表
 
-> **最后更新**: 2026-02-04
-> **版本**: v1.0
+> **最后更新**: 2026-02-05
+> **版本**: v1.2
 > **表名**: `screenshots`
 > **别名**: D1
+> **实现状态**: ✅ 已实现
 
 ---
 
@@ -11,127 +12,48 @@
 
 存储所有屏幕截图的元数据和 AI 分析结果。这是 Vision-Jarvis 的核心数据表之一。
 
+**实现文件**: `src-tauri/src/db/migrations.rs`
+
 ---
 
 ## 表结构
 
-### DDL
+### DDL（实际实现）
 
 ```sql
-CREATE TABLE screenshots (
-    -- 主键
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-    -- 基本信息
-    file_path TEXT NOT NULL,              -- 文件路径
-    app_name TEXT NOT NULL,               -- 应用名称
-    timestamp DATETIME NOT NULL,          -- 截图时间
-    file_size INTEGER NOT NULL,           -- 文件大小 (bytes)
-    content_hash TEXT,                    -- 内容哈希 SHA256 (用于去重)
-
-    -- AI 分析字段
-    ocr_text TEXT,                        -- OCR 识别的文本
-    ai_summary TEXT,                      -- AI 生成的摘要
-    keywords TEXT,                        -- 关键词 (逗号分隔)
-    confidence REAL,                      -- AI 分析置信度 (0.0 - 1.0)
-    status TEXT NOT NULL DEFAULT 'pending', -- 分析状态
-
-    -- 关联字段
-    memory_id INTEGER,                    -- 关联的短期记忆 ID (FK)
-
-    -- 元数据
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (memory_id) REFERENCES short_term_memory(id) ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS screenshots (
+    id TEXT PRIMARY KEY,                   -- UUID v4
+    path TEXT NOT NULL,                    -- 截图文件路径
+    captured_at INTEGER NOT NULL,          -- Unix 时间戳（秒）
+    analyzed INTEGER DEFAULT 0,            -- 是否已分析 (0/1)
+    analysis_result TEXT,                  -- AI 分析结果（JSON）
+    embedding BLOB,                        -- 向量嵌入（用于语义搜索）
+    analyzed_at INTEGER,                   -- 分析完成时间戳（v1.2 新增）
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
 );
 ```
 
 ### 索引
 
 ```sql
--- 时间查询索引 (高频)
-CREATE INDEX idx_screenshots_timestamp ON screenshots(timestamp);
+-- 捕获时间查询索引（降序，最新优先）
+CREATE INDEX IF NOT EXISTS idx_screenshots_captured_at
+    ON screenshots(captured_at DESC);
 
--- 应用名称过滤索引
-CREATE INDEX idx_screenshots_app_name ON screenshots(app_name);
-
--- 状态查询索引 (用于 AI 分析队列)
-CREATE INDEX idx_screenshots_status ON screenshots(status);
-
--- 记忆关联索引
-CREATE INDEX idx_screenshots_memory_id ON screenshots(memory_id);
-
--- 复合索引: 时间范围 + 状态
-CREATE INDEX idx_screenshots_time_status ON screenshots(timestamp, status);
+-- 分析状态索引（用于 AI 分析队列）
+CREATE INDEX IF NOT EXISTS idx_screenshots_analyzed
+    ON screenshots(analyzed);
 ```
 
----
+### 字段说明
 
-## 字段详解
-
-### id
-
-- **类型**: INTEGER
-- **约束**: PRIMARY KEY, AUTOINCREMENT
-- **描述**: 截图唯一标识符
-
-### file_path
-
+#### id
 - **类型**: TEXT
-- **约束**: NOT NULL
-- **描述**: 截图文件的绝对路径
-- **示例**: `/Users/user/Library/Application Support/Vision-Jarvis/screenshots/1738675200_VSCode.webp`
+- **约束**: PRIMARY KEY
+- **描述**: 截图唯一标识符（UUID v4）
+- **示例**: `550e8400-e29b-41d4-a716-446655440000`
 
-### app_name
-
-- **类型**: TEXT
-- **约束**: NOT NULL
-- **描述**: 截图时的活跃应用名称
-- **示例**: `Visual Studio Code`, `Google Chrome`
-
-### timestamp
-
-- **类型**: DATETIME
-- **约束**: NOT NULL
-- **描述**: 截图捕获时间 (UTC)
-- **格式**: ISO 8601
-- **示例**: `2026-02-04T10:30:00Z`
-
-### file_size
-
-- **类型**: INTEGER
-- **约束**: NOT NULL
-- **描述**: 截图文件大小，单位字节
-- **示例**: `524288` (512 KB)
-
-### content_hash
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: 图片内容的 SHA256 哈希值，用于去重和内容变化检测
-- **示例**: `a3b5c7d9e1f2...`
-
-### ocr_text
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: OCR 识别出的文本内容
-- **示例**: `function calculateSum(a: number, b: number) { return a + b; }`
-
-### ai_summary
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: AI 生成的截图内容摘要
-- **示例**: `用户正在 VSCode 中编写 TypeScript 函数，实现数字求和功能`
-
-### keywords
-
-- **类型**: TEXT
-- **约束**: NULLABLE
-- **描述**: AI 提取的关键词，逗号分隔
-- **示例**: `TypeScript, 函数, VSCode, 编程`
+#### path
 
 ### confidence
 
@@ -401,5 +323,20 @@ fn validate_status(status: &str) -> Result<(), ValidationError> {
 
 ---
 
+## 版本历史
+
+### v1.2 (2026-02-05) - Phase 3
+- ✅ 新增 `analyzed_at` 字段 - 记录分析完成时间戳
+- ✅ 用于追踪分析任务完成时间
+- ✅ 后台调度器使用此字段进行任务统计
+
+### v1.1 (2026-02-05) - Phase 1
+- ✅ 初始表结构实现
+- ✅ 基础索引创建
+
+---
+
 **维护者**: 数据库设计组
+**最后更新**: 2026-02-05
+
 **最后更新**: 2026-02-04

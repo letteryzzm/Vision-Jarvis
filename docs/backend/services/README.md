@@ -1,7 +1,7 @@
 # 服务层概述
 
-> **最后更新**: 2026-02-04
-> **版本**: v1.0
+> **最后更新**: 2026-02-06
+> **版本**: v1.1
 
 ---
 
@@ -107,29 +107,33 @@ impl MemoryService {
 
 ### 4. 通知服务 (NotificationService)
 
-**职责**: 主动推送提醒、行为分析、打断衔接
+**职责**: 基于规则引擎的主动通知系统
 
 **核心方法**:
 ```rust
-pub struct NotificationService {
-    notification_repo: Arc<NotificationRepository>,
-    memory_service: Arc<MemoryService>,
+pub struct NotificationScheduler {
+    db: Arc<Database>,
+    rule_engine: Arc<RuleEngine>,
 }
 
-impl NotificationService {
-    // 推送温馨提醒
-    pub async fn push_work_reminder(&self) -> Result<()>;
+impl NotificationScheduler {
+    // 启动调度器
+    pub fn start(&self) -> JoinHandle<()>;
 
-    // 推送合理建议
-    pub async fn push_suggestion(&self, suggestion: Suggestion) -> Result<()>;
+    // 检查规则并发送通知
+    async fn check_and_notify(db: &Database, rules: &RuleEngine) -> Result<()>;
 
-    // 打断衔接提醒
-    pub async fn push_resume_reminder(&self, context: WorkContext) -> Result<()>;
-
-    // 分析工作模式
-    pub async fn analyze_work_pattern(&self) -> Result<WorkPattern>;
+    // 获取待发送的通知
+    pub fn get_pending_notifications(db: &Database) -> Result<Vec<Notification>>;
 }
 ```
+
+**内置规则**:
+- RestReminderRule - 连续工作60分钟提醒
+- DailySummaryRule - 每日20点总结提醒
+- InactivityReminderRule - 2小时未活动提醒
+
+**实现状态**: ✅ Phase 4 已实现
 
 **详细文档**: [notification-service.md](notification-service.md)
 

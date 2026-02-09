@@ -1,0 +1,51 @@
+---
+// 360x480 Asker 展开状态
+---
+
+<div
+  id="asker-expanded"
+  class="bg-card rounded-[32px] border border-primary flex flex-col transition-all duration-300"
+  style="width: 360px; height: 480px;"
+>
+  <!-- Header -->
+  <div class="h-16 px-6 flex items-center justify-between border-b border-primary" data-tauri-drag-region>
+    <h2 class="text-lg font-semibold text-primary">AI 助手</h2>
+    <button
+      id="close-asker"
+      class="w-8 h-8 rounded-full hover:bg-secondary transition-colors flex items-center justify-center"
+      style="-webkit-app-region: no-drag;"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+        <path d="M18 6 6 18M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Messages -->
+  <div class="flex-1 p-4 overflow-y-auto custom-scrollbar" id="asker-messages">
+    <div class="text-center text-muted py-12">
+      向我提问关于你的记忆...
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="p-4 border-t border-primary">
+    <div class="flex gap-2">
+      <input
+        type="text"
+        id="asker-input"
+        placeholder="输入问题..."
+        class="flex-1 h-10 px-4 bg-input rounded-full border border-secondary focus:border-glow outline-none text-sm text-primary placeholder:text-placeholder"
+      />
+      <button
+        id="asker-send"
+        class="w-10 h-10 rounded-full gradient-primary flex items-center justify-center hover:opacity-90 transition-opacity"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="m3 3 3 9-3 9 19-9Z"/>
+          <path d="M6 12h16"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>

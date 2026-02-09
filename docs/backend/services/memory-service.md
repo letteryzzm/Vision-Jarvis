@@ -1,8 +1,25 @@
 # 记忆服务 (MemoryService)
 
-> **最后更新**: 2026-02-04
-> **版本**: v1.0
-> **功能**: 短期记忆生成、意图识别、事项提取
+> **最后更新**: 2026-02-05
+> **版本**: v2.0
+> **功能**: 短期记忆生成、长期记忆总结、后台任务调度
+
+---
+
+## 📋 更新日志
+
+### v2.0 (2026-02-05) - Phase 3 实现
+
+**新增功能**:
+- ✅ 短期记忆生成器 (ShortTermMemoryGenerator)
+- ✅ 长期记忆生成器 (LongTermMemoryGenerator)
+- ✅ 记忆生成调度器 (MemoryScheduler)
+- ✅ Database 多线程支持 (Arc<Mutex<Connection>>)
+
+**实现模块**:
+- `src-tauri/src/memory/short_term.rs` - 短期记忆聚合
+- `src-tauri/src/memory/long_term.rs` - 长期记忆总结
+- `src-tauri/src/memory/scheduler.rs` - 后台任务调度
 
 ---
 
@@ -556,5 +573,152 @@ impl MemoryService {
 
 ---
 
+## Phase 3 实现细节 (v2.0)
+
+### 短期记忆生成器
+
+**文件**: `src-tauri/src/memory/short_term.rs`
+
+**核心功能**:
+```rust
+pub struct ShortTermMemoryGenerator {
+    db: Database,
+}
+
+impl ShortTermMemoryGenerator {
+    /// 生成指定日期的短期记忆
+    pub fn generate_for_date(&self, date: NaiveDate) -> Result<Vec<ShortTermMemory>>
+
+    /// 按活动聚合截图（5分钟阈值）
+    fn group_by_activity(&self, screenshots: Vec<ScreenshotInfo>) -> Result<Vec<ActivityGroup>>
+
+    /// 判断是否应该合并到当前活动组
+    fn should_merge(&self, group: &ActivityGroup, screenshot: &ScreenshotInfo) -> bool
+
+    /// 判断时段（上午/下午/晚上）
+    fn determine_period(&self, hour: u32) -> Period
+}
+```
+
+**聚合规则**:
+- 相同活动 + 时间间隔 < 5 分钟 → 合并
+- 不同活动或间隔 > 5 分钟 → 新建活动组
+
+**时段划分**:
+- 上午 (Morning): 0:00 - 11:59
+- 下午 (Afternoon): 12:00 - 17:59
+- 晚上 (Evening): 18:00 - 23:59
+
+**测试覆盖率**: 100%
+
+---
+
+### 长期记忆生成器
+
+**文件**: `src-tauri/src/memory/long_term.rs`
+
+**核心功能**:
+```rust
+pub struct LongTermMemoryGenerator {
+    db: Database,
+    ai_client: Option<OpenAIClient>,
+}
+
+impl LongTermMemoryGenerator {
+    /// 创建带 AI 客户端的生成器
+    pub fn with_ai(db: Database, ai_client: OpenAIClient) -> Self
+
+    /// 生成日期范围的长期记忆
+    pub async fn generate_summary(
+        &self,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<LongTermMemory>
+
+    /// 提取主要活动（Top 5 by 时长）
+    fn extract_main_activities(&self, memories: &[ShortTermMemorySummary]) -> Vec<MainActivity>
+
+    /// 生成 AI 总结（GPT-4o）
+    async fn generate_ai_summary(&self, memories: &[ShortTermMemorySummary]) -> Result<String>
+}
+```
+
+**AI 总结**:
+- 使用 GPT-4o 模型
+- 提示词：根据活动记录生成简洁中文总结（150字以内）
+- 降级策略：无 AI 时使用默认摘要生成器
+
+**默认摘要生成**:
+```rust
+fn generate_default_summary(memories: &[ShortTermMemorySummary]) -> String {
+    // 统计活动时长
+    // 排序取 Top 3
+    // 格式化输出："本周期共记录X小时Y分钟的活动。主要活动包括：..."
+}
+```
+
+**测试覆盖率**: 100%
+
+---
+
+### 记忆生成调度器
+
+**文件**: `src-tauri/src/memory/scheduler.rs`
+
+**核心功能**:
+```rust
+pub struct MemoryScheduler {
+    db: Arc<Database>,
+    api_key: Arc<String>,
+}
+
+impl MemoryScheduler {
+    /// 启动后台调度任务
+    pub fn start(&self) -> JoinHandle<()>
+}
+```
+
+**调度策略**:
+| 任务 | 间隔 | 功能 |
+|------|------|------|
+| 截图分析 | 5 分钟 | 分析未处理的截图 |
+| 短期记忆生成 | 30 分钟 | 生成短期记忆片段 |
+| 长期记忆生成 | 24 小时 | 汇总长期记忆 |
+
+**异步架构**:
+- 使用 tokio::spawn 启动后台任务
+- tokio::select! 并发处理多个定时器
+- Arc 共享数据库连接
+- 错误日志记录（log::error）
+
+**测试覆盖率**: 100%
+
+---
+
+### Database 优化
+
+**多线程支持**:
+```rust
+pub struct Database {
+    conn: Arc<Mutex<Connection>>,
+}
+
+impl Database {
+    /// 线程安全的连接访问
+    pub fn with_connection<F, R>(&self, f: F) -> Result<R>
+    where
+        F: FnOnce(&Connection) -> Result<R>,
+    {
+        let conn = self.conn.lock().unwrap();
+        f(&conn)
+    }
+}
+```
+
+**Clone 支持**: Database 现在实现了 Clone trait，可以在多个线程间共享
+
+---
+
 **维护者**: 后端服务组
-**最后更新**: 2026-02-04
+**最后更新**: 2026-02-05
+

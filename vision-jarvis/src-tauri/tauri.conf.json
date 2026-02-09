@@ -10,11 +10,20 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "vision-jarvis",
-        "width": 800,
-        "height": 600
+        "label": "floating-ball",
+        "title": "Vision Jarvis",
+        "url": "/floating-ball",
+        "width": 64,
+        "height": 64,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true
       }
     ],
     "security": {

@@ -1,1 +1,109 @@
 @import "tailwindcss";
+
+/* Vision Jarvis Custom Styles */
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 p-0 font-['Inter',_sans-serif] antialiased;
+    @apply bg-[#0A0A0C] text-white;
+  }
+
+  #app {
+    @apply w-screen h-screen overflow-hidden;
+  }
+}
+
+@layer utilities {
+  /* Primary Gradients */
+  .gradient-primary {
+    background: linear-gradient(135deg, #00D4FF 0%, #7B2FFF 100%);
+  }
+
+  .gradient-success {
+    background: linear-gradient(90deg, #00FF88 0%, #00D4FF 100%);
+  }
+
+  .gradient-card {
+    background: linear-gradient(135deg, #0A1628 0%, #1A0A28 100%);
+  }
+
+  /* Custom Colors */
+  .bg-app { background-color: #0A0A0C; }
+  .bg-page { background-color: #0F0F12; }
+  .bg-card { background-color: #18181C; }
+  .bg-sidebar { background-color: #141418; }
+  .bg-input { background-color: #1E1E22; }
+  .bg-item { background-color: #1A1A1E; }
+  .bg-secondary { background-color: #252529; }
+
+  .border-primary { border-color: #2A2A30; }
+  .border-secondary { border-color: #3A3A40; }
+  .border-glow { border-color: rgba(0, 212, 255, 0.25); }
+
+  .text-primary { color: #FFFFFF; }
+  .text-secondary { color: #E0E0E8; }
+  .text-tertiary { color: #CCCCDD; }
+  .text-muted { color: #888899; }
+  .text-disabled { color: #666677; }
+  .text-placeholder { color: #555566; }
+  .text-subtle { color: #444455; }
+
+  .text-info { color: #00D4FF; }
+  .text-success { color: #00FF88; }
+  .text-warning { color: #FFB800; }
+
+  /* Glow Effects */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+  }
+
+  /* Animations */
+  .float-animation {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 10px rgba(0, 212, 255, 0.3); }
+    50% { box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
+  }
+
+  /* Scrollbar Styling */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #1A1A1E;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #3A3A40;
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #00D4FF;
+  }
+
+  /* Performance Optimizations */
+  .transition-all {
+    will-change: transform, opacity;
+  }
+}

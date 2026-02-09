@@ -1,0 +1,428 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout>
+	<div class="w-screen h-screen bg-page overflow-y-auto custom-scrollbar">
+		<div class="max-w-[1200px] mx-auto p-10 space-y-8">
+			<!-- Title -->
+			<div class="flex items-center justify-between">
+				<h1 class="text-white text-[28px] font-bold">File Management</h1>
+				<button
+					onclick="window.location.href='/'"
+					class="px-6 py-2 bg-card border border-primary rounded-[12px] text-white font-medium
+					       hover:border-glow transition-colors cursor-pointer"
+				>
+					Back
+				</button>
+			</div>
+
+			<!-- Storage Overview Card -->
+			<div class="bg-card border border-primary rounded-[20px] p-7">
+				<h2 class="text-white text-lg font-bold mb-6">Storage Overview</h2>
+
+				<div id="storage-loading" class="text-muted text-center py-8">
+					Loading storage information...
+				</div>
+
+				<div id="storage-info" class="hidden">
+					<!-- Total Usage -->
+					<div class="mb-6">
+						<div class="flex items-center justify-between mb-2">
+							<span class="text-secondary text-sm">Total Usage</span>
+							<span id="total-usage" class="text-white font-mono">0 MB</span>
+						</div>
+						<div class="h-3 bg-input rounded-full overflow-hidden">
+							<div id="usage-bar" class="h-full gradient-primary rounded-full transition-all duration-500" style="width: 0%"></div>
+						</div>
+					</div>
+
+					<!-- Breakdown -->
+					<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+						<div class="bg-input rounded-[12px] p-4 text-center">
+							<div class="text-2xl mb-2">Screenshots</div>
+							<div id="screenshots-size" class="text-info font-mono text-lg">0 MB</div>
+						</div>
+						<div class="bg-input rounded-[12px] p-4 text-center">
+							<div class="text-2xl mb-2">Memories</div>
+							<div id="memories-size" class="text-success font-mono text-lg">0 MB</div>
+						</div>
+						<div class="bg-input rounded-[12px] p-4 text-center">
+							<div class="text-2xl mb-2">Database</div>
+							<div id="database-size" class="text-warning font-mono text-lg">0 MB</div>
+						</div>
+						<div class="bg-input rounded-[12px] p-4 text-center">
+							<div class="text-2xl mb-2">Logs</div>
+							<div id="logs-size" class="text-muted font-mono text-lg">0 MB</div>
+						</div>
+					</div>
+
+					<div class="mt-6 flex items-center justify-between text-sm">
+						<span class="text-muted">
+							Total Files: <span id="total-files" class="text-white">0</span>
+						</span>
+						<span class="text-muted">
+							Location: <span id="storage-path" class="text-tertiary font-mono text-xs">-</span>
+						</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- File Browser Card -->
+			<div class="bg-card border border-primary rounded-[20px] p-7">
+				<div class="flex items-center justify-between mb-6">
+					<h2 class="text-white text-lg font-bold">File Browser</h2>
+
+					<!-- Folder Tabs -->
+					<div class="flex gap-2">
+						<button
+							class="folder-tab px-4 py-2 rounded-[10px] text-sm font-medium transition-all
+							       bg-input text-muted hover:text-white"
+							data-folder="Screenshots"
+						>
+							Screenshots
+						</button>
+						<button
+							class="folder-tab px-4 py-2 rounded-[10px] text-sm font-medium transition-all
+							       bg-input text-muted hover:text-white"
+							data-folder="Memories"
+						>
+							Memories
+						</button>
+						<button
+							class="folder-tab px-4 py-2 rounded-[10px] text-sm font-medium transition-all
+							       bg-input text-muted hover:text-white"
+							data-folder="Logs"
+						>
+							Logs
+						</button>
+					</div>
+				</div>
+
+				<!-- File List -->
+				<div id="file-list" class="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+					<div class="text-muted text-center py-8">
+						Select a folder to view files
+					</div>
+				</div>
+
+				<!-- Actions -->
+				<div class="flex gap-4 mt-6 pt-6 border-t border-primary">
+					<button
+						id="btn-open-folder"
+						class="px-6 py-3 bg-input rounded-[12px] text-white font-medium
+						       hover:bg-secondary transition-colors cursor-pointer flex items-center gap-2"
+						disabled
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+								d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
+						</svg>
+						Open in Finder
+					</button>
+					<button
+						id="btn-cleanup"
+						class="px-6 py-3 bg-input rounded-[12px] text-warning font-medium
+						       hover:bg-secondary transition-colors cursor-pointer flex items-center gap-2"
+						disabled
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+								d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+						</svg>
+						Cleanup Old Files (30+ days)
+					</button>
+				</div>
+			</div>
+
+			<!-- Cleanup Confirmation Modal -->
+			<div id="cleanup-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+				<div class="bg-card border border-primary rounded-[20px] p-8 max-w-md mx-4">
+					<h3 class="text-white text-xl font-bold mb-4">Confirm Cleanup</h3>
+					<p class="text-secondary mb-6">
+						This will permanently delete all files older than 30 days in the selected folder. This action cannot be undone.
+					</p>
+					<div class="flex gap-4 justify-end">
+						<button
+							id="btn-cancel-cleanup"
+							class="px-6 py-3 bg-input rounded-[12px] text-white font-medium
+							       hover:bg-secondary transition-colors cursor-pointer"
+						>
+							Cancel
+						</button>
+						<button
+							id="btn-confirm-cleanup"
+							class="px-6 py-3 bg-red-600 rounded-[12px] text-white font-medium
+							       hover:bg-red-700 transition-colors cursor-pointer"
+						>
+							Delete Files
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		import { invoke } from '@tauri-apps/api/core';
+
+		// Types
+		interface StorageInfo {
+			total_used_bytes: number;
+			screenshots_bytes: number;
+			memories_bytes: number;
+			database_bytes: number;
+			logs_bytes: number;
+			temp_bytes: number;
+			total_files: number;
+			root_path: string;
+		}
+
+		interface FileInfo {
+			name: string;
+			path: string;
+			size_bytes: number;
+			created_at: number;
+			modified_at: number;
+			extension: string | null;
+		}
+
+		interface ApiResponse<T> {
+			success: boolean;
+			data?: T;
+			error?: string;
+		}
+
+		// State
+		let currentFolder: string | null = null;
+
+		// Utilities
+		function formatBytes(bytes: number): string {
+			if (bytes === 0) return '0 B';
+			const k = 1024;
+			const sizes = ['B', 'KB', 'MB', 'GB'];
+			const i = Math.floor(Math.log(bytes) / Math.log(k));
+			return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+		}
+
+		function formatDate(timestamp: number): string {
+			return new Date(timestamp * 1000).toLocaleString();
+		}
+
+		// Load storage info
+		async function loadStorageInfo() {
+			try {
+				const response = await invoke<ApiResponse<StorageInfo>>('get_storage_info');
+
+				if (response.success && response.data) {
+					const info = response.data;
+
+					document.getElementById('storage-loading')?.classList.add('hidden');
+					document.getElementById('storage-info')?.classList.remove('hidden');
+
+					document.getElementById('total-usage')!.textContent = formatBytes(info.total_used_bytes);
+					document.getElementById('screenshots-size')!.textContent = formatBytes(info.screenshots_bytes);
+					document.getElementById('memories-size')!.textContent = formatBytes(info.memories_bytes);
+					document.getElementById('database-size')!.textContent = formatBytes(info.database_bytes);
+					document.getElementById('logs-size')!.textContent = formatBytes(info.logs_bytes);
+					document.getElementById('total-files')!.textContent = info.total_files.toString();
+					document.getElementById('storage-path')!.textContent = info.root_path;
+
+					// Calculate usage percentage (assume 10GB limit)
+					const limitBytes = 10 * 1024 * 1024 * 1024;
+					const percentage = Math.min((info.total_used_bytes / limitBytes) * 100, 100);
+					(document.getElementById('usage-bar') as HTMLElement).style.width = `${percentage}%`;
+				}
+			} catch (error) {
+				console.error('Failed to load storage info:', error);
+			}
+		}
+
+		// Load files for a folder
+		async function loadFiles(folderType: string) {
+			const fileList = document.getElementById('file-list')!;
+			fileList.innerHTML = '<div class="text-muted text-center py-8">Loading files...</div>';
+
+			try {
+				const response = await invoke<ApiResponse<FileInfo[]>>('list_files', {
+					folderType,
+					limit: 100
+				});
+
+				if (response.success && response.data) {
+					const files = response.data;
+
+					if (files.length === 0) {
+						fileList.innerHTML = '<div class="text-muted text-center py-8">No files found</div>';
+						return;
+					}
+
+					fileList.innerHTML = files.map(file => `
+						<div class="flex items-center justify-between p-4 bg-input rounded-[12px] hover:bg-secondary transition-colors">
+							<div class="flex items-center gap-4">
+								<div class="w-10 h-10 bg-card rounded-[8px] flex items-center justify-center">
+									<span class="text-lg">${getFileIcon(file.extension)}</span>
+								</div>
+								<div>
+									<div class="text-white font-medium text-sm">${file.name}</div>
+									<div class="text-muted text-xs">${formatDate(file.modified_at)}</div>
+								</div>
+							</div>
+							<div class="flex items-center gap-4">
+								<span class="text-tertiary font-mono text-sm">${formatBytes(file.size_bytes)}</span>
+								<button
+									class="btn-delete p-2 text-muted hover:text-red-500 transition-colors cursor-pointer"
+									data-path="${file.path}"
+								>
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+											d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+									</svg>
+								</button>
+							</div>
+						</div>
+					`).join('');
+
+					// Attach delete handlers
+					fileList.querySelectorAll('.btn-delete').forEach(btn => {
+						btn.addEventListener('click', async (e) => {
+							const path = (e.currentTarget as HTMLElement).dataset.path;
+							if (path && confirm('Delete this file?')) {
+								await deleteFile(path);
+							}
+						});
+					});
+				}
+			} catch (error) {
+				console.error('Failed to load files:', error);
+				fileList.innerHTML = '<div class="text-red-500 text-center py-8">Failed to load files</div>';
+			}
+		}
+
+		function getFileIcon(extension: string | null): string {
+			switch (extension?.toLowerCase()) {
+				case 'png':
+				case 'jpg':
+				case 'jpeg':
+				case 'gif':
+					return 'image';
+				case 'json':
+					return 'code';
+				case 'log':
+				case 'txt':
+					return 'doc';
+				case 'db':
+				case 'sqlite':
+					return 'db';
+				default:
+					return 'file';
+			}
+		}
+
+		// Delete file
+		async function deleteFile(path: string) {
+			try {
+				const response = await invoke<ApiResponse<boolean>>('delete_file', { filePath: path });
+
+				if (response.success) {
+					if (currentFolder) {
+						await loadFiles(currentFolder);
+					}
+					await loadStorageInfo();
+				} else {
+					alert(response.error || 'Failed to delete file');
+				}
+			} catch (error) {
+				console.error('Failed to delete file:', error);
+				alert('Failed to delete file');
+			}
+		}
+
+		// Open folder
+		async function openFolder(folderType: string) {
+			try {
+				await invoke('open_folder', { folderType });
+			} catch (error) {
+				console.error('Failed to open folder:', error);
+			}
+		}
+
+		// Cleanup old files
+		async function cleanupOldFiles(folderType: string, days: number) {
+			try {
+				const response = await invoke<ApiResponse<number>>('cleanup_old_files', {
+					folderType,
+					days
+				});
+
+				if (response.success) {
+					alert(`Cleaned up ${response.data} files`);
+					if (currentFolder) {
+						await loadFiles(currentFolder);
+					}
+					await loadStorageInfo();
+				} else {
+					alert(response.error || 'Cleanup failed');
+				}
+			} catch (error) {
+				console.error('Cleanup failed:', error);
+				alert('Cleanup failed');
+			}
+		}
+
+		// Initialize
+		document.addEventListener('DOMContentLoaded', () => {
+			loadStorageInfo();
+
+			// Folder tab handlers
+			document.querySelectorAll('.folder-tab').forEach(tab => {
+				tab.addEventListener('click', () => {
+					const folder = (tab as HTMLElement).dataset.folder;
+					if (!folder) return;
+
+					currentFolder = folder;
+
+					// Update active tab
+					document.querySelectorAll('.folder-tab').forEach(t => {
+						t.classList.remove('gradient-primary', 'text-white');
+						t.classList.add('bg-input', 'text-muted');
+					});
+					tab.classList.remove('bg-input', 'text-muted');
+					tab.classList.add('gradient-primary', 'text-white');
+
+					// Enable action buttons
+					(document.getElementById('btn-open-folder') as HTMLButtonElement).disabled = false;
+					(document.getElementById('btn-cleanup') as HTMLButtonElement).disabled = false;
+
+					// Load files
+					loadFiles(folder);
+				});
+			});
+
+			// Open folder button
+			document.getElementById('btn-open-folder')?.addEventListener('click', () => {
+				if (currentFolder) {
+					openFolder(currentFolder);
+				}
+			});
+
+			// Cleanup button
+			document.getElementById('btn-cleanup')?.addEventListener('click', () => {
+				document.getElementById('cleanup-modal')?.classList.remove('hidden');
+			});
+
+			// Cancel cleanup
+			document.getElementById('btn-cancel-cleanup')?.addEventListener('click', () => {
+				document.getElementById('cleanup-modal')?.classList.add('hidden');
+			});
+
+			// Confirm cleanup
+			document.getElementById('btn-confirm-cleanup')?.addEventListener('click', async () => {
+				document.getElementById('cleanup-modal')?.classList.add('hidden');
+				if (currentFolder) {
+					await cleanupOldFiles(currentFolder, 30);
+				}
+			});
+		});
+	</script>
+</Layout>
