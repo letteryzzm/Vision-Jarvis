@@ -25,6 +25,21 @@ impl Database {
         })
     }
 
+    /// 创建内存数据库(仅用于测试)
+    #[cfg(test)]
+    pub fn open_in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
+
+        let db = Self {
+            conn: Arc::new(Mutex::new(conn)),
+        };
+
+        // 运行迁移
+        db.initialize()?;
+        Ok(db)
+    }
+
     /// 初始化数据库表结构
     pub fn initialize(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
