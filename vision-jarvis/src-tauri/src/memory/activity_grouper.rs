@@ -6,8 +6,8 @@
 /// 3. 生成ActivitySession列表
 
 use anyhow::Result;
-use chrono::{DateTime, Utc, NaiveDateTime};
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -45,11 +45,11 @@ pub struct ActivityGrouper {
 
 /// 分析后的截图信息
 #[derive(Debug, Clone)]
-struct AnalyzedScreenshot {
-    id: String,
-    path: String,
-    captured_at: i64,
-    analysis: AnalysisResult,
+pub struct AnalyzedScreenshot {
+    pub id: String,
+    pub path: String,
+    pub captured_at: i64,
+    pub analysis: AnalysisResult,
 }
 
 /// 临时活动组(用于构建过程)
@@ -163,13 +163,22 @@ impl ActivityGrouper {
                 let analysis_json: String = row.get(3)?;
 
                 // 解析analysis_result JSON
-                let analysis: AnalysisResult = serde_json::from_str(&analysis_json)
-                    .unwrap_or_else(|_| AnalysisResult {
-                        activity: "未知活动".to_string(),
-                        application: "未知应用".to_string(),
-                        description: "".to_string(),
-                        category: ActivityCategory::Other,
-                    });
+                let analysis: AnalysisResult = match serde_json::from_str(&analysis_json) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        log::warn!(
+                            "Skipping screenshot {} - failed to parse analysis_result: {}",
+                            id, e
+                        );
+                        // 返回一个标记对象，后续过滤掉
+                        AnalysisResult {
+                            activity: String::new(),
+                            application: String::new(),
+                            description: String::new(),
+                            category: ActivityCategory::Other,
+                        }
+                    }
+                };
 
                 Ok(AnalyzedScreenshot {
                     id,
@@ -178,6 +187,11 @@ impl ActivityGrouper {
                     analysis,
                 })
             })?.collect::<rusqlite::Result<Vec<_>>>()?;
+
+            // 过滤掉解析失败的截图（activity为空）
+            let screenshots: Vec<_> = screenshots.into_iter()
+                .filter(|s| !s.analysis.activity.is_empty())
+                .collect();
 
             Ok(screenshots)
         })
@@ -191,6 +205,7 @@ impl ActivityGrouper {
 
         let mut groups = Vec::new();
         let mut current_group: Option<ActivityGroup> = None;
+        let mut date_counters: HashMap<String, usize> = HashMap::new();
 
         for screenshot in screenshots {
             if let Some(ref mut group) = current_group {
@@ -212,8 +227,9 @@ impl ActivityGrouper {
                     // 保存当前组(如果符合最小标准)
                     if group.meets_minimum_criteria(&self.config) {
                         let date_str = format_timestamp_as_date(group.start_time);
-                        let seq = groups.len() + 1;
-                        let markdown_path = format!("activities/{}/activity-{:03}.md", date_str, seq);
+                        let counter = date_counters.entry(date_str.clone()).or_insert(0);
+                        *counter += 1;
+                        let markdown_path = format!("activities/{}/activity-{:03}.md", date_str, counter);
                         groups.push(group.finalize(markdown_path));
                     }
 
@@ -230,8 +246,9 @@ impl ActivityGrouper {
         if let Some(group) = current_group {
             if group.meets_minimum_criteria(&self.config) {
                 let date_str = format_timestamp_as_date(group.start_time);
-                let seq = groups.len() + 1;
-                let markdown_path = format!("activities/{}/activity-{:03}.md", date_str, seq);
+                let counter = date_counters.entry(date_str.clone()).or_insert(0);
+                *counter += 1;
+                let markdown_path = format!("activities/{}/activity-{:03}.md", date_str, counter);
                 groups.push(group.finalize(markdown_path));
             }
         }

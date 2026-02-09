@@ -42,7 +42,8 @@ impl Database {
 
     /// 初始化数据库表结构
     pub fn initialize(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         migrations::run_migrations(&conn)?;
         Ok(())
     }
@@ -52,7 +53,8 @@ impl Database {
     where
         F: FnOnce(&Connection) -> Result<R>,
     {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         f(&conn)
     }
 }

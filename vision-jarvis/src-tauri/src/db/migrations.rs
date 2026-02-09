@@ -13,23 +13,26 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 
     // V1: 原始表结构 (已存在的用户是V1,新用户从V1开始)
     if version < 1 {
-        create_screenshots_table(conn)?;
-        create_short_term_memories_table(conn)?;
-        create_long_term_memories_table(conn)?;
-        create_settings_table(conn)?;
+        let tx = conn.unchecked_transaction()?;
+        create_screenshots_table(&tx)?;
+        create_short_term_memories_table(&tx)?;
+        create_long_term_memories_table(&tx)?;
+        create_settings_table(&tx)?;
+        set_schema_version(&tx, 1)?;
+        tx.commit()?;
     }
 
     // V2: 事项驱动记忆系统
     if version < 2 {
-        create_activities_table(conn)?;
-        create_memory_files_table(conn)?;
-        create_memory_chunks_table(conn)?;
-        create_embedding_cache_table(conn)?;
-        add_activity_id_to_screenshots(conn)?;
+        let tx = conn.unchecked_transaction()?;
+        create_activities_table(&tx)?;
+        create_memory_files_table(&tx)?;
+        create_memory_chunks_table(&tx)?;
+        create_embedding_cache_table(&tx)?;
+        add_activity_id_to_screenshots(&tx)?;
+        set_schema_version(&tx, 2)?;
+        tx.commit()?;
     }
-
-    // 更新版本号
-    set_schema_version(conn, 2)?;
 
     Ok(())
 }
