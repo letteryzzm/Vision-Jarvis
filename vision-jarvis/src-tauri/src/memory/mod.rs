@@ -12,3 +12,4 @@ pub mod markdown_generator;
 pub mod chunker;
 pub mod index_manager;
 pub mod hybrid_search;
+pub mod pipeline;

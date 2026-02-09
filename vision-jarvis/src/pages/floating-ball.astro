@@ -13,27 +13,24 @@ import Asker from '../components/FloatingBall/Asker.astro';
   <title>Vision Jarvis</title>
 </head>
 <body style="margin: 0; padding: 0; background: transparent; overflow: hidden;">
-  <!-- 新布局: 水平 flex 布局，Ball 始终在右侧 -->
-  <div id="container" style="display: flex; flex-direction: row; align-items: flex-start; width: 100%; height: 100%;">
+  <!-- 垂直布局: Ball 在上，Expansion 在下 -->
 
-    <!-- Expansion Zone - 动态显示，在 Ball 左侧 -->
-    <div id="expansion-zone" class="hidden" style="flex-shrink: 0;">
-      <!-- Header Expansion -->
-      <div id="header-expansion" class="hidden">
-        <Header />
-      </div>
+  <!-- Ball Zone - 始终可见，Ball 靠右对齐 -->
+  <div id="ball-zone" style="width: 100%; height: 64px; display: flex; align-items: center; justify-content: flex-end;">
+    <Ball />
+  </div>
 
-      <!-- Asker Expansion -->
-      <div id="asker-expansion" class="hidden">
-        <Asker />
-      </div>
+  <!-- Expansion Zone - 动态显示，在 Ball 下方 -->
+  <div id="expansion-zone" class="hidden" style="margin-top: 10px;">
+    <!-- Header Expansion -->
+    <div id="header-expansion" class="hidden">
+      <Header />
     </div>
 
-    <!-- Ball Zone - 始终可见，固定在右侧 -->
-    <div id="ball-zone" style="flex-shrink: 0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
-      <Ball />
+    <!-- Asker Expansion -->
+    <div id="asker-expansion" class="hidden">
+      <Asker />
     </div>
-
   </div>
 
   <script>
@@ -297,7 +294,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
   <style is:global>
     /* ========================================
-     * 水平布局样式 - Ball 固定右侧，Expansion 在左侧
+     * 垂直布局样式 - Ball 在上，Expansion 在下
      * ======================================== */
 
     /* 确保 body 不会溢出 */
@@ -307,43 +304,34 @@ import Asker from '../components/FloatingBall/Asker.astro';
       box-sizing: border-box;
     }
 
-    /* Container - 水平 flex 布局 */
-    #container {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      width: 100%;
-      height: 100%;
-    }
-
-    /* Ball Zone - 固定右侧，始终 64x64 */
+    /* Ball Zone - 宽度自适应窗口，Ball 靠右对齐 */
     #ball-zone {
-      flex-shrink: 0;
-      width: 64px;
+      width: 100%;
       height: 64px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      /* 移除所有边框 */
+      justify-content: flex-end; /* Ball 始终靠右，避免瞬移 */
+      /* 移除所有边框和背景 */
       border: none;
       outline: none;
+      background: transparent;
     }
 
-    /* Expansion Zone - 动态区域，在 Ball 左侧 */
+    /* Expansion Zone - 在 Ball 下方 */
     #expansion-zone {
-      flex-shrink: 0;
-      margin-right: 10px; /* 10px gap between expansion and ball */
+      margin-top: 10px; /* 10px gap between ball and expansion */
+      width: 100%;
     }
 
     /* Header Expansion */
     #header-expansion {
-      width: 286px;  /* 360 - 64 (ball) - 10 (gap) = 286 */
+      width: 360px;
       height: 72px;
     }
 
     /* Asker Expansion */
     #asker-expansion {
-      width: 286px;  /* 360 - 64 (ball) - 10 (gap) = 286 */
+      width: 360px;
       height: 480px;
     }
 
