@@ -13,24 +13,27 @@ import Asker from '../components/FloatingBall/Asker.astro';
   <title>Vision Jarvis</title>
 </head>
 <body style="margin: 0; padding: 0; background: transparent; overflow: hidden;">
-  <!-- 双区域布局: Ball Zone (固定) + Expansion Zone (动态) -->
+  <!-- 新布局: 水平 flex 布局，Ball 始终在右侧 -->
+  <div id="container" style="display: flex; flex-direction: row; align-items: flex-start; width: 100%; height: 100%;">
 
-  <!-- Ball Zone - 始终可见，固定在顶部 -->
-  <div id="ball-zone">
-    <Ball />
-  </div>
+    <!-- Expansion Zone - 动态显示，在 Ball 左侧 -->
+    <div id="expansion-zone" class="hidden" style="flex-shrink: 0;">
+      <!-- Header Expansion -->
+      <div id="header-expansion" class="hidden">
+        <Header />
+      </div>
 
-  <!-- Expansion Zone - 动态显示，在 Ball 下方 -->
-  <div id="expansion-zone" class="hidden">
-    <!-- Header Expansion -->
-    <div id="header-expansion" class="hidden">
-      <Header />
+      <!-- Asker Expansion -->
+      <div id="asker-expansion" class="hidden">
+        <Asker />
+      </div>
     </div>
 
-    <!-- Asker Expansion -->
-    <div id="asker-expansion" class="hidden">
-      <Asker />
+    <!-- Ball Zone - 始终可见，固定在右侧 -->
+    <div id="ball-zone" style="flex-shrink: 0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
+      <Ball />
     </div>
+
   </div>
 
   <script>
@@ -81,21 +84,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // 更新 Ball Zone 宽度
-    function updateBallZoneWidth(state: WindowState): void {
-      const ballZone = getBallZone();
-      if (!ballZone) return;
-
-      if (state === 'ball') {
-        // Ball only: 64px 宽度，居中
-        ballZone.style.width = '64px';
-        ballZone.style.justifyContent = 'center';
-      } else {
-        // Expanded: 360px 宽度，Ball 靠右对齐
-        ballZone.style.width = '360px';
-        ballZone.style.justifyContent = 'flex-end';
-      }
-    }
+    // updateBallZoneWidth 函数已移除 - Ball Zone 宽度固定为 64px
 
     // 切换到指定状态（带动画）
     async function switchTo(state: WindowState) {
@@ -119,10 +108,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
         // 2. 调整窗口大小
         await invoke(getResizeCommand(state));
 
-        // 3. 更新 Ball Zone 宽度
-        updateBallZoneWidth(state);
-
-        // 4. 切换展开区域显示
+        // 3. 切换展开区域显示（Ball Zone 宽度保持 64px 不变）
         if (state === 'ball') {
           // 折叠: 隐藏 expansion zone
           expansionZone?.classList.add('hidden');
@@ -196,9 +182,6 @@ import Asker from '../components/FloatingBall/Asker.astro';
         console.warn('[Floating Ball] Asker expansion is visible on load, hiding it');
         askerExp.classList.add('hidden');
       }
-
-      // 确保 Ball Zone 宽度正确
-      updateBallZoneWidth('ball');
 
       console.log('[Floating Ball] Initialization complete');
 
@@ -314,7 +297,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
   <style is:global>
     /* ========================================
-     * 双区域布局样式
+     * 水平布局样式 - Ball 固定右侧，Expansion 在左侧
      * ======================================== */
 
     /* 确保 body 不会溢出 */
@@ -324,35 +307,43 @@ import Asker from '../components/FloatingBall/Asker.astro';
       box-sizing: border-box;
     }
 
-    /* Ball Zone - 固定顶部，始终可见 */
+    /* Container - 水平 flex 布局 */
+    #container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Ball Zone - 固定右侧，始终 64x64 */
     #ball-zone {
+      flex-shrink: 0;
       width: 64px;
       height: 64px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: width 200ms ease-out, justify-content 200ms ease-out;
-      /* DEBUG: 添加边框查看位置 */
-      /* border: 2px solid red; */
+      /* 移除所有边框 */
+      border: none;
+      outline: none;
     }
 
-    /* Expansion Zone - 动态区域，在 Ball 下方 */
+    /* Expansion Zone - 动态区域，在 Ball 左侧 */
     #expansion-zone {
-      margin-top: 10px; /* 10px gap between ball and expansion */
-      width: 360px;
-      /* DEBUG: 添加边框查看位置 */
-      /* border: 2px solid blue; */
+      flex-shrink: 0;
+      margin-right: 10px; /* 10px gap between expansion and ball */
     }
 
     /* Header Expansion */
     #header-expansion {
-      width: 360px;
+      width: 286px;  /* 360 - 64 (ball) - 10 (gap) = 286 */
       height: 72px;
     }
 
     /* Asker Expansion */
     #asker-expansion {
-      width: 360px;
+      width: 286px;  /* 360 - 64 (ball) - 10 (gap) = 286 */
       height: 480px;
     }
 
