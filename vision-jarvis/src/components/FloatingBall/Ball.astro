@@ -1,10 +1,11 @@
 ---
 // 64x64 圆形悬浮球
+// 新交互: hover 亮度变化, click 缩放动画
 ---
 
 <div
   id="floating-ball"
-  class="rounded-full gradient-primary flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 pulse-glow"
+  class="rounded-full gradient-primary flex items-center justify-center cursor-pointer pulse-glow"
   style="width: 64px; height: 64px;"
 >
   <svg
@@ -33,6 +34,26 @@
 
 <style>
   #floating-ball {
-    -webkit-app-region: drag;
+    /* 移除拖拽功能 - 现在从 Header 拖拽 */
+    /* -webkit-app-region: drag; */
+
+    /* 添加过渡效果 */
+    transition: filter 200ms ease, transform 150ms ease;
+  }
+
+  /* Hover: 亮度增加 */
+  #floating-ball:hover {
+    filter: brightness(1.2);
+  }
+
+  /* Click/Active: 缩放效果 */
+  #floating-ball:active {
+    transform: scale(0.95);
+  }
+
+  /* 可选: 添加 focus 样式支持键盘导航 */
+  #floating-ball:focus {
+    outline: 2px solid rgba(255, 255, 255, 0.5);
+    outline-offset: 2px;
   }
 </style>

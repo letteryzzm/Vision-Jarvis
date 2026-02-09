@@ -61,7 +61,8 @@ pub async fn open_popup_setting_window(app: AppHandle) -> ApiResponse<String> {
     }
 }
 
-/// 展开浮球到 Header 状态 (360x72)
+/// 展开浮球到 Header 状态 (360x146)
+/// 新布局: Ball(64) + gap(10) + Header(72) = 146
 #[tauri::command]
 pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
@@ -81,16 +82,27 @@ pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
             let physical_size = monitor.size();
             let scale_factor = monitor.scale_factor();
             let screen_width = physical_size.width as f64 / scale_factor;
+            let screen_height = physical_size.height as f64 / scale_factor;
 
-            // 计算新位置：保持右边缘对齐
-            // 当前窗口宽度64，展开后360，需要向左移动 (360-64) = 296
+            // 新尺寸：Ball(64) + gap(10) + Header(72) = 146
             let new_width = 360.0;
+            let new_height = 146.0;
             let margin_right = 20.0;
+
+            // 计算X位置：保持右边缘对齐
             let new_x = (screen_width - new_width - margin_right).max(0.0);
-            let new_y = current_pos.y as f64 / scale_factor; // 保持Y位置不变
+
+            // 计算Y位置：保持当前Y，但检查是否超出屏幕底部
+            let current_y = current_pos.y as f64 / scale_factor;
+            let new_y = if (current_y + new_height) > screen_height {
+                // 超出底部，向上调整
+                (screen_height - new_height).max(0.0)
+            } else {
+                current_y
+            };
 
             // 先设置大小
-            if let Err(e) = window.set_size(tauri::LogicalSize::new(new_width, 72.0)) {
+            if let Err(e) = window.set_size(tauri::LogicalSize::new(new_width, new_height)) {
                 return ApiResponse::error(format!("Failed to resize: {}", e));
             }
 
@@ -105,7 +117,8 @@ pub async fn expand_to_header(app: AppHandle) -> ApiResponse<String> {
     }
 }
 
-/// 展开浮球到 Asker 状态 (360x480)
+/// 展开浮球到 Asker 状态 (360x554)
+/// 新布局: Ball(64) + gap(10) + Asker(480) = 554
 #[tauri::command]
 pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
     match app.get_webview_window("floating-ball") {
@@ -124,15 +137,27 @@ pub async fn expand_to_asker(app: AppHandle) -> ApiResponse<String> {
             let physical_size = monitor.size();
             let scale_factor = monitor.scale_factor();
             let screen_width = physical_size.width as f64 / scale_factor;
+            let screen_height = physical_size.height as f64 / scale_factor;
 
-            // 计算新位置：保持右边缘对齐
+            // 新尺寸：Ball(64) + gap(10) + Asker(480) = 554
             let new_width = 360.0;
+            let new_height = 554.0;
             let margin_right = 20.0;
+
+            // 计算X位置：保持右边缘对齐
             let new_x = (screen_width - new_width - margin_right).max(0.0);
-            let new_y = current_pos.y as f64 / scale_factor;
+
+            // 计算Y位置：保持当前Y，但检查是否超出屏幕底部
+            let current_y = current_pos.y as f64 / scale_factor;
+            let new_y = if (current_y + new_height) > screen_height {
+                // 超出底部，向上调整
+                (screen_height - new_height).max(0.0)
+            } else {
+                current_y
+            };
 
             // 先设置大小
-            if let Err(e) = window.set_size(tauri::LogicalSize::new(new_width, 480.0)) {
+            if let Err(e) = window.set_size(tauri::LogicalSize::new(new_width, new_height)) {
                 return ApiResponse::error(format!("Failed to resize: {}", e));
             }
 

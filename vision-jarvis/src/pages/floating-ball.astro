@@ -12,20 +12,25 @@ import Asker from '../components/FloatingBall/Asker.astro';
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vision Jarvis</title>
 </head>
-<body style="margin: 0; padding: 0; background: transparent; overflow: hidden; width: 64px; height: 64px;">
-  <!-- Ball State (default) -->
-  <div id="ball-state">
+<body style="margin: 0; padding: 0; background: transparent; overflow: hidden;">
+  <!-- 双区域布局: Ball Zone (固定) + Expansion Zone (动态) -->
+
+  <!-- Ball Zone - 始终可见，固定在顶部 -->
+  <div id="ball-zone">
     <Ball />
   </div>
 
-  <!-- Header State (on hover) -->
-  <div id="header-state" class="hidden">
-    <Header />
-  </div>
+  <!-- Expansion Zone - 动态显示，在 Ball 下方 -->
+  <div id="expansion-zone" class="hidden">
+    <!-- Header Expansion -->
+    <div id="header-expansion" class="hidden">
+      <Header />
+    </div>
 
-  <!-- Asker State (on click) -->
-  <div id="asker-state" class="hidden">
-    <Asker />
+    <!-- Asker Expansion -->
+    <div id="asker-expansion" class="hidden">
+      <Asker />
+    </div>
   </div>
 
   <script>
@@ -35,10 +40,30 @@ import Asker from '../components/FloatingBall/Asker.astro';
     let currentState: WindowState = 'ball';
     let isTransitioning: boolean = false;
     let hoverTimer: number | null = null;
+    let isInitialized: boolean = false; // 防止初始化时触发 hover
 
-    // 获取状态元素
-    function getStateElement(state: WindowState): HTMLElement | null {
-      return document.getElementById(`${state}-state`);
+    // 窗口尺寸配置（新布局）
+    const WINDOW_SIZES = {
+      ball: { width: 64, height: 64 },           // 仅 Ball
+      header: { width: 360, height: 146 },       // Ball(64) + gap(10) + Header(72)
+      asker: { width: 360, height: 554 }         // Ball(64) + gap(10) + Asker(480)
+    };
+
+    // 获取展开区域元素
+    function getExpansionZone(): HTMLElement | null {
+      return document.getElementById('expansion-zone');
+    }
+
+    function getHeaderExpansion(): HTMLElement | null {
+      return document.getElementById('header-expansion');
+    }
+
+    function getAskerExpansion(): HTMLElement | null {
+      return document.getElementById('asker-expansion');
+    }
+
+    function getBallZone(): HTMLElement | null {
+      return document.getElementById('ball-zone');
     }
 
     // 获取 resize 命令
@@ -56,6 +81,22 @@ import Asker from '../components/FloatingBall/Asker.astro';
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    // 更新 Ball Zone 宽度
+    function updateBallZoneWidth(state: WindowState): void {
+      const ballZone = getBallZone();
+      if (!ballZone) return;
+
+      if (state === 'ball') {
+        // Ball only: 64px 宽度，居中
+        ballZone.style.width = '64px';
+        ballZone.style.justifyContent = 'center';
+      } else {
+        // Expanded: 360px 宽度，Ball 靠右对齐
+        ballZone.style.width = '360px';
+        ballZone.style.justifyContent = 'flex-end';
+      }
+    }
+
     // 切换到指定状态（带动画）
     async function switchTo(state: WindowState) {
       if (currentState === state || isTransitioning) return;
@@ -64,38 +105,49 @@ import Asker from '../components/FloatingBall/Asker.astro';
       const previousState = currentState;
 
       try {
-        // 1. 淡出当前状态
-        const currentEl = getStateElement(previousState);
-        currentEl?.classList.add('transitioning-out');
+        const expansionZone = getExpansionZone();
+        const headerExp = getHeaderExpansion();
+        const askerExp = getAskerExpansion();
 
-        await delay(150);
+        // 1. 淡出当前展开内容（如果有）
+        if (previousState !== 'ball') {
+          const currentExp = previousState === 'header' ? headerExp : askerExp;
+          currentExp?.classList.add('transitioning-out');
+          await delay(150);
+        }
 
         // 2. 调整窗口大小
         await invoke(getResizeCommand(state));
 
-        // 3. 更新 HTML/body 尺寸以匹配新窗口大小
-        const sizes = {
-          'ball': { width: 64, height: 64 },
-          'header': { width: 360, height: 72 },
-          'asker': { width: 360, height: 480 }
-        };
-        const size = sizes[state];
-        document.documentElement.style.width = `${size.width}px`;
-        document.documentElement.style.height = `${size.height}px`;
-        document.body.style.width = `${size.width}px`;
-        document.body.style.height = `${size.height}px`;
+        // 3. 更新 Ball Zone 宽度
+        updateBallZoneWidth(state);
 
-        // 4. 切换 DOM 显示
-        currentEl?.classList.add('hidden');
-        currentEl?.classList.remove('transitioning-out');
+        // 4. 切换展开区域显示
+        if (state === 'ball') {
+          // 折叠: 隐藏 expansion zone
+          expansionZone?.classList.add('hidden');
+          headerExp?.classList.add('hidden');
+          askerExp?.classList.add('hidden');
+        } else {
+          // 展开: 显示对应的 expansion
+          expansionZone?.classList.remove('hidden');
 
-        const nextEl = getStateElement(state);
-        nextEl?.classList.remove('hidden');
-        nextEl?.classList.add('transitioning-in');
+          if (state === 'header') {
+            headerExp?.classList.remove('hidden');
+            headerExp?.classList.add('transitioning-in');
+            askerExp?.classList.add('hidden');
+          } else if (state === 'asker') {
+            askerExp?.classList.remove('hidden');
+            askerExp?.classList.add('transitioning-in');
+            headerExp?.classList.add('hidden');
+          }
 
-        await delay(150);
+          await delay(150);
 
-        nextEl?.classList.remove('transitioning-in');
+          // 移除动画类
+          headerExp?.classList.remove('transitioning-in', 'transitioning-out');
+          askerExp?.classList.remove('transitioning-in', 'transitioning-out');
+        }
 
         currentState = state;
       } catch (error) {
@@ -107,35 +159,40 @@ import Asker from '../components/FloatingBall/Asker.astro';
       }
     }
 
-    // Ball 状态悬停事件
-    const ballState = getStateElement('ball');
-    ballState?.addEventListener('mouseenter', () => {
-      if (currentState !== 'ball') return;
+    // ========================================
+    // 事件处理
+    // ========================================
+
+    // Ball Zone 悬停 -> Header
+    const ballZone = getBallZone();
+    ballZone?.addEventListener('mouseenter', () => {
+      if (currentState !== 'ball' || !isInitialized) return;
 
       hoverTimer = window.setTimeout(() => {
         switchTo('header');
       }, 200);
     });
 
-    ballState?.addEventListener('mouseleave', () => {
+    ballZone?.addEventListener('mouseleave', () => {
       if (hoverTimer) {
         clearTimeout(hoverTimer);
         hoverTimer = null;
       }
     });
 
-    // Header 状态事件
-    const headerState = getStateElement('header');
-    headerState?.addEventListener('mouseenter', () => {
-      // 鼠标进入 Header，取消折叠计时器
+    // Expansion Zone 鼠标事件
+    const expansionZone = getExpansionZone();
+
+    expansionZone?.addEventListener('mouseenter', () => {
+      // 鼠标进入 Expansion Zone，取消折叠计时器
       if (hoverTimer) {
         clearTimeout(hoverTimer);
         hoverTimer = null;
       }
     });
 
-    headerState?.addEventListener('mouseleave', () => {
-      // 鼠标离开 Header，300ms 后折叠
+    expansionZone?.addEventListener('mouseleave', () => {
+      // 鼠标离开 Expansion Zone，300ms 后折叠
       hoverTimer = window.setTimeout(() => {
         if (currentState === 'header') {
           switchTo('ball');
@@ -143,7 +200,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
       }, 300);
     });
 
-    // 点击悬浮球 -> Asker
+    // 点击 Ball -> Asker
     document.getElementById('floating-ball')?.addEventListener('click', (e) => {
       e.stopPropagation();
       switchTo('asker');
@@ -152,25 +209,29 @@ import Asker from '../components/FloatingBall/Asker.astro';
     // 点击外部 -> Ball
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      const askerEl = getStateElement('asker');
-      const headerEl = getStateElement('header');
+      const expZone = getExpansionZone();
+      const bZone = getBallZone();
 
-      if (!askerEl?.contains(target) && !headerEl?.contains(target)) {
+      // 如果点击的不在 ball zone 或 expansion zone 内，则折叠
+      if (!expZone?.contains(target) && !bZone?.contains(target)) {
         if (currentState !== 'ball') {
           switchTo('ball');
         }
       }
     });
 
-    // 键盘事件
+    // 键盘事件: ESC 折叠
     document.addEventListener('keydown', (e) => {
-      // ESC: 折叠回 Ball
       if (e.key === 'Escape') {
         if (currentState !== 'ball') {
           switchTo('ball');
         }
       }
     });
+
+    // ========================================
+    // 按钮事件
+    // ========================================
 
     // Memory 按钮
     document.getElementById('memory-btn')?.addEventListener('click', async () => {
@@ -181,7 +242,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
       }
     });
 
-    // Popup 按钮
+    // Popup 按钮（暂时保留，后续改为 Settings）
     document.getElementById('popup-btn')?.addEventListener('click', async () => {
       try {
         await invoke('open_popup_setting_window');
@@ -194,42 +255,92 @@ import Asker from '../components/FloatingBall/Asker.astro';
     document.getElementById('close-asker')?.addEventListener('click', () => {
       switchTo('ball');
     });
+
+    // ========================================
+    // 初始化
+    // ========================================
+
+    // 页面加载时确保初始状态正确
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Floating Ball] Page loaded, initializing...');
+      console.log('[Floating Ball] Current state:', currentState);
+      console.log('[Floating Ball] Expansion zone hidden:', getExpansionZone()?.classList.contains('hidden'));
+      console.log('[Floating Ball] Header expansion hidden:', getHeaderExpansion()?.classList.contains('hidden'));
+      console.log('[Floating Ball] Asker expansion hidden:', getAskerExpansion()?.classList.contains('hidden'));
+
+      // 确保初始状态为 ball（所有展开区域都隐藏）
+      const expansionZone = getExpansionZone();
+      const headerExp = getHeaderExpansion();
+      const askerExp = getAskerExpansion();
+
+      if (expansionZone && !expansionZone.classList.contains('hidden')) {
+        console.warn('[Floating Ball] Expansion zone is visible on load, hiding it');
+        expansionZone.classList.add('hidden');
+      }
+
+      if (headerExp && !headerExp.classList.contains('hidden')) {
+        console.warn('[Floating Ball] Header expansion is visible on load, hiding it');
+        headerExp.classList.add('hidden');
+      }
+
+      if (askerExp && !askerExp.classList.contains('hidden')) {
+        console.warn('[Floating Ball] Asker expansion is visible on load, hiding it');
+        askerExp.classList.add('hidden');
+      }
+
+      // 确保 Ball Zone 宽度正确
+      updateBallZoneWidth('ball');
+
+      console.log('[Floating Ball] Initialization complete');
+
+      // 标记初始化完成，允许 hover 事件
+      setTimeout(() => {
+        isInitialized = true;
+        console.log('[Floating Ball] Hover events enabled');
+      }, 500); // 500ms 后启用 hover，避免初始化时误触发
+    });
   </script>
 
   <style is:global>
-    /* 全局样式 */
-    html {
-      width: 64px;
-      height: 64px;
-      overflow: hidden;
+    /* ========================================
+     * 双区域布局样式
+     * ======================================== */
+
+    /* 确保 body 不会溢出 */
+    body {
+      width: 100%;
+      max-width: 100vw;
+      box-sizing: border-box;
     }
 
-    /* 状态容器样式 */
-    #ball-state,
-    #header-state,
-    #asker-state {
-      position: absolute;
-      top: 0;
-      left: 0;
+    /* Ball Zone - 固定顶部，始终可见 */
+    #ball-zone {
+      width: 64px;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: width 200ms ease-out, justify-content 200ms ease-out;
+      /* DEBUG: 添加边框查看位置 */
+      /* border: 2px solid red; */
     }
 
-    /* Ball 状态容器 */
-    #ball-state {
-      width: 64px;
-      height: 64px;
+    /* Expansion Zone - 动态区域，在 Ball 下方 */
+    #expansion-zone {
+      margin-top: 10px; /* 10px gap between ball and expansion */
+      width: 360px;
+      /* DEBUG: 添加边框查看位置 */
+      /* border: 2px solid blue; */
     }
 
-    /* Header 状态容器 */
-    #header-state {
+    /* Header Expansion */
+    #header-expansion {
       width: 360px;
       height: 72px;
     }
 
-    /* Asker 状态容器 */
-    #asker-state {
+    /* Asker Expansion */
+    #asker-expansion {
       width: 360px;
       height: 480px;
     }
@@ -257,6 +368,26 @@ import Asker from '../components/FloatingBall/Asker.astro';
         opacity: 1;
         transform: scale(1);
       }
+    }
+
+    /* ========================================
+     * 自定义滚动条
+     * ======================================== */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
     }
   </style>
 </body>

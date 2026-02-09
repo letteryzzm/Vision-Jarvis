@@ -119,3 +119,99 @@ impl Default for AppSettings {
         }
     }
 }
+
+// ============================================================================
+// V2 Schema: Activity-Driven Memory System
+// ============================================================================
+
+/// 活动会话 - 一段时间内用户的连贯活动
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivitySession {
+    pub id: String,                          // "activity-2024-01-15-001"
+    pub title: String,                       // AI生成的标题
+    pub start_time: i64,                     // Unix时间戳
+    pub end_time: i64,                       // Unix时间戳
+    pub duration_minutes: i64,               // 计算得出
+    pub application: String,                 // 主要应用程序
+    pub category: ActivityCategory,          // 活动分类
+    pub screenshot_ids: Vec<String>,         // 关联的截图ID列表
+    pub screenshot_analyses: Vec<ScreenshotAnalysisSummary>, // 截图分析摘要
+    pub tags: Vec<String>,                   // AI生成的标签
+    pub markdown_path: String,               // 相对路径
+    pub summary: Option<String>,             // AI生成的总结
+    pub indexed: bool,                       // 是否已索引到向量数据库
+    pub created_at: i64,                     // 创建时间
+}
+
+/// 截图分析摘要 - 用于Activity的frontmatter
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreenshotAnalysisSummary {
+    pub id: String,
+    pub timestamp: i64,
+    pub path: String,                        // 相对路径
+    pub analysis: String,                    // 一行描述
+}
+
+/// 记忆分块 - 用于向量索引
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryChunk {
+    pub id: String,                          // UUID
+    pub file_path: String,                   // 源文件相对路径
+    pub source: MemorySource,                // 来源类型
+    pub start_line: i32,                     // 分块起始行号
+    pub end_line: i32,                       // 分块结束行号
+    pub hash: String,                        // SHA-256哈希(前16字符)
+    pub model: String,                       // Embedding模型
+    pub text: String,                        // 分块文本内容
+    pub embedding: Vec<f32>,                 // 向量embedding
+    pub activity_id: Option<String>,         // 关联的activity ID
+    pub updated_at: i64,                     // 更新时间
+}
+
+/// 分块元数据 - JSON序列化后存储在chunks表的metadata列
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkMetadata {
+    pub application: Option<String>,
+    pub activity: Option<String>,
+    pub category: Option<String>,
+    pub timestamp: Option<i64>,
+    pub date: Option<String>,
+}
+
+/// 记忆来源类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MemorySource {
+    Activity,  // 来自活动Markdown
+    Summary,   // 来自周/月总结
+}
+
+impl MemorySource {
+    pub fn as_str(&self) -> &str {
+        match self {
+            MemorySource::Activity => "activity",
+            MemorySource::Summary => "summary",
+        }
+    }
+}
+
+/// 文件追踪记录 - 用于增量索引
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackedFile {
+    pub path: String,                        // 相对路径
+    pub source: MemorySource,                // 文件类型
+    pub hash: String,                        // 文件内容哈希
+    pub mtime: i64,                          // 最后修改时间
+    pub size: i64,                           // 文件大小(字节)
+}
+
+/// Embedding缓存条目
+#[derive(Debug, Clone)]
+pub struct EmbeddingCacheEntry {
+    pub provider: String,                    // "openai"
+    pub model: String,                       // "text-embedding-3-small"
+    pub hash: String,                        // 文本哈希
+    pub embedding: Vec<u8>,                  // 序列化的向量
+    pub dims: i32,                           // 向量维度
+    pub created_at: i64,                     // 缓存时间
+}

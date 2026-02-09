@@ -1,10 +1,13 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
 
 import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
+  // React 集成
+  integrations: [react()],
   // 输出静态站点（Tauri 需要）
   output: 'static',
 
