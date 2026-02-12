@@ -213,6 +213,13 @@ import Asker from '../components/FloatingBall/Asker.astro';
             clearTimeout(hoverTimer);
             hoverTimer = null;
           }
+
+          // 鼠标离开 Ball Zone，300ms 后折叠（如果已展开）
+          if (currentState !== 'ball') {
+            hoverTimer = window.setTimeout(() => {
+              switchTo('ball');
+            }, 300);
+          }
         });
 
         // Expansion Zone 鼠标事件
