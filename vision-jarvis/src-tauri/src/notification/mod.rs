@@ -2,22 +2,26 @@
 ///
 /// 基于用户行为和时间规则生成主动通知
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Utc};
 
 pub mod scheduler;
 pub mod rules;
+pub mod context;
+pub mod delivery;
+pub mod smart;
 
 /// 通知类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum NotificationType {
-    /// 休息提醒
-    RestReminder,
-    /// 任务提醒
-    TaskReminder,
-    /// 总结提醒
-    SummaryReminder,
+    /// 早安提醒
+    MorningReminder,
+    /// 喝水提醒
+    WaterReminder,
+    /// 久坐提醒
+    SedentaryReminder,
+    /// 屏幕无变化提醒（智能提醒）
+    ScreenInactivityReminder,
     /// 自定义通知
     Custom,
 }
@@ -106,17 +110,18 @@ impl Notification {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
 
     #[test]
     fn test_notification_creation() {
         let notification = Notification::new(
-            NotificationType::RestReminder,
+            NotificationType::MorningReminder,
             NotificationPriority::Normal,
-            "休息提醒".to_string(),
-            "您已连续工作1小时，建议休息5分钟".to_string(),
+            "早安提醒".to_string(),
+            "新的一天开始了".to_string(),
         );
 
-        assert_eq!(notification.notification_type, NotificationType::RestReminder);
+        assert_eq!(notification.notification_type, NotificationType::MorningReminder);
         assert_eq!(notification.priority, NotificationPriority::Normal);
         assert!(!notification.dismissed);
         assert!(notification.sent_at.is_none());
@@ -126,10 +131,10 @@ mod tests {
     fn test_scheduled_notification() {
         let scheduled_time = Utc::now() + Duration::hours(1);
         let notification = Notification::scheduled(
-            NotificationType::TaskReminder,
-            NotificationPriority::High,
-            "任务提醒".to_string(),
-            "会议即将开始".to_string(),
+            NotificationType::WaterReminder,
+            NotificationPriority::Normal,
+            "喝水提醒".to_string(),
+            "该喝水了".to_string(),
             scheduled_time,
         );
 
@@ -140,7 +145,7 @@ mod tests {
     #[test]
     fn test_mark_sent() {
         let mut notification = Notification::new(
-            NotificationType::RestReminder,
+            NotificationType::SedentaryReminder,
             NotificationPriority::Normal,
             "测试".to_string(),
             "测试消息".to_string(),
@@ -154,7 +159,7 @@ mod tests {
     #[test]
     fn test_dismiss_notification() {
         let mut notification = Notification::new(
-            NotificationType::RestReminder,
+            NotificationType::ScreenInactivityReminder,
             NotificationPriority::Normal,
             "测试".to_string(),
             "测试消息".to_string(),

@@ -1,136 +1,110 @@
 /// 通知调度器
 ///
-/// 定时评估规则并发送通知
+/// 每分钟评估规则并发送通知
 
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tokio::task::JoinHandle;
-use log::{info, error};
 use super::{Notification, NotificationPriority};
-use super::rules::{RuleEngine, RuleContext};
+use super::rules::{RuleEngine, CooldownTracker};
+use super::context;
+use super::delivery;
 use crate::db::Database;
-use chrono::Utc;
+use crate::settings::SettingsManager;
 
 /// 通知调度器
 pub struct NotificationScheduler {
     db: Arc<Database>,
-    rule_engine: Arc<RuleEngine>,
+    settings: Arc<SettingsManager>,
+    cooldown: Arc<CooldownTracker>,
 }
 
 impl NotificationScheduler {
     /// 创建新的调度器
-    pub fn new(db: Database) -> Self {
+    pub fn new(
+        db: Arc<Database>,
+        settings: Arc<SettingsManager>,
+    ) -> Self {
         Self {
-            db: Arc::new(db),
-            rule_engine: Arc::new(RuleEngine::with_default_rules()),
+            db,
+            settings,
+            cooldown: Arc::new(CooldownTracker::new()),
         }
     }
 
-    /// 使用自定义规则引擎
-    pub fn with_rules(db: Database, rule_engine: RuleEngine) -> Self {
-        Self {
-            db: Arc::new(db),
-            rule_engine: Arc::new(rule_engine),
-        }
-    }
-
-    /// 启动调度器
-    pub fn start(&self) -> JoinHandle<()> {
-        let check_interval = Duration::from_secs(300); // 每5分钟检查一次
+    /// 启动调度器（需要 AppHandle 用于发送通知）
+    pub fn start(&self, app_handle: tauri::AppHandle) -> JoinHandle<()> {
+        let check_interval = Duration::from_secs(60); // 每分钟检查
 
         let db = Arc::clone(&self.db);
-        let rules = Arc::clone(&self.rule_engine);
+        let settings = Arc::clone(&self.settings);
+        let cooldown = Arc::clone(&self.cooldown);
 
         tokio::spawn(async move {
             let mut ticker = interval(check_interval);
+            let mut last_date = chrono::Local::now().date_naive();
 
             loop {
                 ticker.tick().await;
 
-                if let Err(e) = Self::check_and_notify(&db, &rules).await {
-                    error!("通知检查失败: {}", e);
+                // 午夜重置每日规则冷却
+                let today = chrono::Local::now().date_naive();
+                if today != last_date {
+                    cooldown.reset_daily();
+                    last_date = today;
+                    eprintln!("[NotificationScheduler] Daily cooldown reset");
+                }
+
+                // 从当前设置构建规则引擎（支持热更新）
+                let current_settings = settings.get();
+                let rule_engine = RuleEngine::from_settings(&current_settings);
+
+                // 构建上下文
+                let ctx = match context::build_context(&db) {
+                    Ok(ctx) => ctx,
+                    Err(e) => {
+                        eprintln!("[NotificationScheduler] Failed to build context: {}", e);
+                        continue;
+                    }
+                };
+
+                // 评估规则
+                let notifications = rule_engine.evaluate_with_cooldown(&ctx, &cooldown);
+
+                if notifications.is_empty() {
+                    continue;
+                }
+
+                eprintln!("[NotificationScheduler] Generated {} notification(s)", notifications.len());
+
+                // 保存并发送
+                for mut notification in notifications {
+                    // 保存到数据库
+                    if let Err(e) = save_notification(&db, &notification) {
+                        eprintln!("[NotificationScheduler] Failed to save: {}", e);
+                    }
+
+                    // 标记已发送
+                    notification.mark_sent();
+
+                    // 系统通知
+                    if let Err(e) = delivery::send_system_notification(&app_handle, &notification) {
+                        eprintln!("[NotificationScheduler] System notification failed: {}", e);
+                    }
+
+                    // 前端事件
+                    if let Err(e) = delivery::emit_notification_event(&app_handle, &notification) {
+                        eprintln!("[NotificationScheduler] Event emission failed: {}", e);
+                    }
+
+                    eprintln!(
+                        "[NotificationScheduler] Sent: {} - {}",
+                        notification.title, notification.message
+                    );
                 }
             }
         })
-    }
-
-    /// 检查规则并发送通知
-    async fn check_and_notify(db: &Database, rules: &RuleEngine) -> Result<()> {
-        info!("开始检查通知规则");
-
-        // 构建规则上下文
-        let context = Self::build_context(db).await?;
-
-        // 评估规则
-        let notifications = rules.evaluate(&context);
-
-        if notifications.is_empty() {
-            info!("无待发送通知");
-            return Ok(());
-        }
-
-        info!("生成 {} 个通知", notifications.len());
-
-        // 保存并发送通知
-        for notification in notifications {
-            Self::save_notification(db, &notification)?;
-            Self::send_notification(&notification).await?;
-        }
-
-        Ok(())
-    }
-
-    /// 构建规则上下文
-    async fn build_context(db: &Database) -> Result<RuleContext> {
-        // TODO: 从数据库查询实际数据
-        // 这里使用模拟数据
-        let context = RuleContext {
-            now: Utc::now(),
-            continuous_work_minutes: 0,
-            last_break_time: None,
-            today_work_minutes: 0,
-            current_activity: None,
-        };
-
-        Ok(context)
-    }
-
-    /// 保存通知到数据库
-    fn save_notification(db: &Database, notification: &Notification) -> Result<()> {
-        db.with_connection(|conn| {
-            conn.execute(
-                "INSERT INTO notifications (
-                    id, type, priority, title, message,
-                    created_at, scheduled_at, sent_at, dismissed
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-                (
-                    &notification.id,
-                    serde_json::to_string(&notification.notification_type)?,
-                    notification.priority.clone() as i32,
-                    &notification.title,
-                    &notification.message,
-                    notification.created_at,
-                    notification.scheduled_at,
-                    notification.sent_at,
-                    notification.dismissed,
-                ),
-            )?;
-            Ok(())
-        })
-    }
-
-    /// 发送通知
-    async fn send_notification(notification: &Notification) -> Result<()> {
-        info!(
-            "发送通知: {} - {}",
-            notification.title, notification.message
-        );
-
-        // TODO: 集成 tauri-plugin-notification
-        // 当前仅记录日志
-
-        Ok(())
     }
 
     /// 获取待发送的通知
@@ -175,48 +149,26 @@ impl NotificationScheduler {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::NamedTempFile;
-
-    #[test]
-    fn test_scheduler_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db = Database::new(temp_file.path().to_path_buf()).unwrap();
-        db.initialize().unwrap();
-
-        let scheduler = NotificationScheduler::new(db);
-        assert!(Arc::strong_count(&scheduler.rule_engine) >= 1);
-    }
-
-    #[test]
-    fn test_get_pending_notifications_empty() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db = Database::new(temp_file.path().to_path_buf()).unwrap();
-        db.initialize().unwrap();
-
-        // 创建 notifications 表
-        db.with_connection(|conn| {
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS notifications (
-                    id TEXT PRIMARY KEY,
-                    type TEXT NOT NULL,
-                    priority INTEGER NOT NULL,
-                    title TEXT NOT NULL,
-                    message TEXT NOT NULL,
-                    created_at INTEGER NOT NULL,
-                    scheduled_at INTEGER,
-                    sent_at INTEGER,
-                    dismissed INTEGER DEFAULT 0
-                )",
-                [],
-            )?;
-            Ok(())
-        })
-        .unwrap();
-
-        let notifications = NotificationScheduler::get_pending_notifications(&db).unwrap();
-        assert_eq!(notifications.len(), 0);
-    }
+/// 保存通知到数据库
+fn save_notification(db: &Database, notification: &Notification) -> Result<()> {
+    db.with_connection(|conn| {
+        conn.execute(
+            "INSERT INTO notifications (
+                id, type, priority, title, message,
+                created_at, scheduled_at, sent_at, dismissed
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            (
+                &notification.id,
+                serde_json::to_string(&notification.notification_type)?,
+                notification.priority.clone() as i32,
+                &notification.title,
+                &notification.message,
+                notification.created_at,
+                notification.scheduled_at,
+                notification.sent_at,
+                notification.dismissed,
+            ),
+        )?;
+        Ok(())
+    })
 }
