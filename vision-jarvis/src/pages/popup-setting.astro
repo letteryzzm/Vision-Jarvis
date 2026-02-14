@@ -4,145 +4,1219 @@ import Layout from '../layouts/Layout.astro';
 
 <Layout>
   <div class="min-h-screen bg-app p-12">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-5xl mx-auto">
       <!-- Header -->
       <div class="mb-12">
-        <h1 class="text-4xl font-bold text-primary mb-2">提醒设置</h1>
-        <p class="text-lg text-muted">配置您的智能提醒和通知</p>
+        <h1 class="text-4xl font-bold text-primary mb-2">设置</h1>
+        <p class="text-lg text-muted">配置您的应用偏好</p>
       </div>
 
-      <!-- Cards Grid -->
-      <div class="grid gap-6">
-        <!-- Card 1: 启动提醒 -->
-        <div class="p-8 bg-card rounded-[24px] border border-primary">
-          <div class="flex items-start justify-between mb-6">
-            <div>
-              <h2 class="text-2xl font-semibold text-primary mb-2">启动提醒</h2>
-              <p class="text-sm text-muted">应用启动时的提醒设置</p>
-            </div>
-            <div class="memory-toggle w-16 h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer">
-              <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
-            </div>
-          </div>
+      <!-- Tabs -->
+      <div class="flex gap-4 mb-8 border-b border-primary">
+        <button
+          id="tab-general"
+          class="tab-btn px-6 py-3 text-sm font-medium transition-colors border-b-2 border-transparent"
+          data-tab="general"
+        >
+          通用设置
+        </button>
+        <button
+          id="tab-ai"
+          class="tab-btn px-6 py-3 text-sm font-medium transition-colors border-b-2 border-transparent"
+          data-tab="ai"
+        >
+          AI 配置
+        </button>
+      </div>
 
-          <div class="space-y-4">
-            <!-- Auto Start -->
-            <div class="flex items-center justify-between p-4 bg-input rounded-xl">
-              <span class="text-sm text-secondary">开机自动启动</span>
-              <div class="memory-toggle w-12 h-6 bg-secondary rounded-full flex items-center px-0.5 cursor-pointer">
-                <div class="w-5 h-5 bg-white rounded-full transition-all duration-300"></div>
+      <!-- Tab Content -->
+      <div id="tab-content">
+        <!-- General Settings Tab -->
+        <div id="content-general" class="tab-content">
+          <div class="grid gap-6">
+            <!-- Card 1: 启动设置 -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <div class="flex items-start justify-between mb-6">
+                <div>
+                  <h2 class="text-2xl font-semibold text-primary mb-2">启动设置</h2>
+                  <p class="text-sm text-muted">应用启动时的行为配置</p>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <!-- Auto Start -->
+                <div class="flex items-center justify-between p-4 bg-input rounded-xl">
+                  <span class="text-sm text-secondary">开机自动启动</span>
+                  <div id="toggle-auto-start" class="w-12 h-6 bg-secondary rounded-full flex items-center px-0.5 cursor-pointer transition-all duration-300">
+                    <div class="w-5 h-5 bg-white rounded-full transition-all duration-300"></div>
+                  </div>
+                </div>
+
+                <!-- Startup Message -->
+                <div>
+                  <label class="text-sm text-secondary block mb-2">启动提醒文本</label>
+                  <textarea
+                    id="launch-text"
+                    class="w-full h-24 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
+                    placeholder="输入启动提醒文本..."
+                  ></textarea>
+                  <button
+                    id="save-launch-text"
+                    class="mt-2 px-4 py-2 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                  >
+                    保存文本
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- Startup Message -->
-            <div>
-              <label class="text-sm text-secondary block mb-2">启动提醒文本</label>
-              <textarea
-                class="w-full h-24 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
-                placeholder="输入启动提醒文本..."
-              >If today were the last day of my life, would I want to do what I am about to do today?</textarea>
+            <!-- Card 2: 早安提醒 -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <div class="flex items-start justify-between mb-6">
+                <div>
+                  <h2 class="text-2xl font-semibold text-primary mb-2">早安提醒</h2>
+                  <p class="text-sm text-muted">每天定时发送一条激励消息</p>
+                </div>
+                <div id="toggle-morning-reminder" class="w-16 h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer transition-all duration-300">
+                  <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="text-sm text-secondary block mb-2">触发时间</label>
+                  <input
+                    id="morning-reminder-time"
+                    type="time"
+                    class="w-48 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                  />
+                </div>
+                <div>
+                  <label class="text-sm text-secondary block mb-2">提醒消息</label>
+                  <textarea
+                    id="morning-reminder-message"
+                    class="w-full h-20 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
+                    placeholder="输入早安提醒消息..."
+                  ></textarea>
+                </div>
+                <button
+                  id="save-morning-reminder"
+                  class="px-4 py-2 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+
+            <!-- Card 3: 喝水提醒 -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <div class="flex items-start justify-between mb-6">
+                <div>
+                  <h2 class="text-2xl font-semibold text-primary mb-2">喝水提醒</h2>
+                  <p class="text-sm text-muted">在工作时间段内定期提醒喝水</p>
+                </div>
+                <div id="toggle-water-reminder" class="w-16 h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer transition-all duration-300">
+                  <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="text-sm text-secondary block mb-3">提醒时间段</label>
+                  <div class="flex items-center gap-4">
+                    <input
+                      id="water-reminder-start"
+                      type="time"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                    />
+                    <span class="text-muted">至</span>
+                    <input
+                      id="water-reminder-end"
+                      type="time"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-sm mb-3">
+                    <span class="text-secondary">提醒间隔</span>
+                    <span class="text-info" id="water-interval-display">每 60 分钟</span>
+                  </div>
+                  <input
+                    id="water-reminder-interval"
+                    type="range"
+                    min="15"
+                    max="180"
+                    value="60"
+                    step="15"
+                    class="w-full"
+                  />
+                  <div class="flex justify-between text-xs text-muted mt-1">
+                    <span>15分钟</span>
+                    <span>180分钟</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm text-secondary block mb-2">提醒消息</label>
+                  <textarea
+                    id="water-reminder-message"
+                    class="w-full h-20 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
+                    placeholder="输入喝水提醒消息..."
+                  ></textarea>
+                </div>
+                <button
+                  id="save-water-reminder"
+                  class="px-4 py-2 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+
+            <!-- Card 4: 久坐提醒 -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <div class="flex items-start justify-between mb-6">
+                <div>
+                  <h2 class="text-2xl font-semibold text-primary mb-2">久坐提醒</h2>
+                  <p class="text-sm text-muted">连续工作超过阈值时提醒休息</p>
+                </div>
+                <div id="toggle-sedentary-reminder" class="w-16 h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer transition-all duration-300">
+                  <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="text-sm text-secondary block mb-3">生效时间段</label>
+                  <div class="flex items-center gap-4">
+                    <input
+                      id="sedentary-reminder-start"
+                      type="time"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                    />
+                    <span class="text-muted">至</span>
+                    <input
+                      id="sedentary-reminder-end"
+                      type="time"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-sm mb-3">
+                    <span class="text-secondary">久坐阈值</span>
+                    <span class="text-info" id="sedentary-threshold-display">60 分钟</span>
+                  </div>
+                  <input
+                    id="sedentary-threshold"
+                    type="range"
+                    min="15"
+                    max="180"
+                    value="60"
+                    step="15"
+                    class="w-full"
+                  />
+                  <div class="flex justify-between text-xs text-muted mt-1">
+                    <span>15分钟</span>
+                    <span>180分钟</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm text-secondary block mb-2">提醒消息</label>
+                  <textarea
+                    id="sedentary-reminder-message"
+                    class="w-full h-20 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
+                    placeholder="输入久坐提醒消息..."
+                  ></textarea>
+                </div>
+                <button
+                  id="save-sedentary-reminder"
+                  class="px-4 py-2 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+
+            <!-- Card 5: 屏幕无变化提醒 -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <div class="flex items-start justify-between mb-6">
+                <div>
+                  <h2 class="text-2xl font-semibold text-primary mb-2">屏幕无变化提醒</h2>
+                  <p class="text-sm text-muted">检测屏幕长时间无变化时提醒</p>
+                </div>
+                <div id="toggle-screen-inactivity" class="w-16 h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer transition-all duration-300">
+                  <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <div class="flex justify-between text-sm mb-3">
+                    <span class="text-secondary">无变化阈值</span>
+                    <span class="text-info" id="screen-inactivity-display">10 分钟</span>
+                  </div>
+                  <input
+                    id="screen-inactivity-minutes"
+                    type="range"
+                    min="5"
+                    max="60"
+                    value="10"
+                    step="5"
+                    class="w-full"
+                  />
+                  <div class="flex justify-between text-xs text-muted mt-1">
+                    <span>5分钟</span>
+                    <span>60分钟</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm text-secondary block mb-2">提醒消息</label>
+                  <textarea
+                    id="screen-inactivity-message"
+                    class="w-full h-20 p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none"
+                    placeholder="留空则使用 AI 智能建议..."
+                  ></textarea>
+                </div>
+                <button
+                  id="save-screen-inactivity"
+                  class="px-4 py-2 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+
+            <!-- Card 6: 存储设置 -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <div class="flex items-start justify-between mb-6">
+                <div>
+                  <h2 class="text-2xl font-semibold text-primary mb-2">存储设置</h2>
+                  <p class="text-sm text-muted">管理截图存储位置和容量</p>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <!-- Storage Path -->
+                <div>
+                  <label class="text-sm text-secondary block mb-2">存储路径</label>
+                  <div class="flex gap-2">
+                    <input
+                      id="storage-path"
+                      type="text"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary font-mono"
+                      placeholder="~/Library/Application Support/vision-jarvis/screenshots"
+                      readonly
+                    />
+                    <button
+                      id="open-storage-folder"
+                      class="px-4 py-2 bg-input rounded-xl border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                    >
+                      打开
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Storage Limit -->
+                <div>
+                  <div class="flex justify-between text-sm mb-3">
+                    <span class="text-secondary">存储容量限制</span>
+                    <span class="text-info" id="storage-limit-display">1024 MB</span>
+                  </div>
+                  <input
+                    id="storage-limit"
+                    type="range"
+                    min="512"
+                    max="10240"
+                    value="1024"
+                    step="512"
+                    class="w-full"
+                  />
+                  <div class="flex justify-between text-xs text-muted mt-1">
+                    <span>512MB</span>
+                    <span>10GB</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Card 2: 定时提醒 -->
-        <div class="p-8 bg-card rounded-[24px] border border-primary">
-          <div class="flex items-start justify-between mb-6">
-            <div>
-              <h2 class="text-2xl font-semibold text-primary mb-2">定时提醒</h2>
-              <p class="text-sm text-muted">设置定期提醒通知</p>
-            </div>
-            <div class="memory-toggle w-16 h-8 gradient-success rounded-full flex items-center justify-end px-1 cursor-pointer">
-              <div class="w-6 h-6 bg-white rounded-full"></div>
-            </div>
-          </div>
+        <!-- AI Configuration Tab -->
+        <div id="content-ai" class="tab-content hidden">
+          <div class="grid gap-6">
+            <!-- Add Provider Form -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <h2 class="text-2xl font-semibold text-primary mb-6">添加 AI 提供商</h2>
 
-          <div class="space-y-4">
-            <!-- Time Range -->
-            <div>
-              <label class="text-sm text-secondary block mb-3">工作时间段</label>
-              <div class="flex items-center gap-4">
-                <input
-                  type="time"
-                  value="09:00"
-                  class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
-                />
-                <span class="text-muted">至</span>
-                <input
-                  type="time"
-                  value="21:00"
-                  class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
-                />
+              <div class="space-y-4">
+                <!-- Provider Name -->
+                <div>
+                  <label class="text-sm text-secondary block mb-2">提供商名称</label>
+                  <input
+                    id="new-provider-name"
+                    type="text"
+                    class="w-full h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                    placeholder="例如: AIHubMix"
+                  />
+                </div>
+
+                <!-- API Base URL -->
+                <div>
+                  <label class="text-sm text-secondary block mb-2">API 地址</label>
+                  <input
+                    id="new-provider-url"
+                    type="text"
+                    class="w-full h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary font-mono"
+                    placeholder="https://api.aihubmix.com"
+                  />
+                  <p class="text-xs text-muted mt-1">OpenAI 兼容格式，会自动添加 /v1/chat/completions</p>
+                </div>
+
+                <!-- Model Selection -->
+                <div>
+                  <label class="text-sm text-secondary block mb-2">模型</label>
+                  <div class="flex gap-2">
+                    <select
+                      id="new-provider-model-select"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary"
+                    >
+                      <option value="">选择预设模型...</option>
+                      <!-- Will be populated dynamically -->
+                    </select>
+                    <button
+                      id="toggle-custom-model"
+                      class="px-4 py-2 bg-input rounded-xl border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                    >
+                      自定义
+                    </button>
+                  </div>
+                  <input
+                    id="new-provider-model-custom"
+                    type="text"
+                    class="hidden w-full h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary font-mono mt-2"
+                    placeholder="输入自定义模型名称"
+                  />
+                </div>
+
+                <!-- API Key -->
+                <div>
+                  <label class="text-sm text-secondary block mb-2">API Key</label>
+                  <div class="flex gap-2">
+                    <input
+                      id="new-provider-key"
+                      type="password"
+                      class="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary font-mono"
+                      placeholder="sk-..."
+                    />
+                    <button
+                      id="toggle-key-visibility"
+                      class="px-4 py-2 bg-input rounded-xl border border-secondary hover:border-glow transition-colors text-sm text-primary"
+                    >
+                      👁️
+                    </button>
+                  </div>
+                  <p class="text-xs text-muted mt-1">API Key 将加密存储在本地</p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-2 pt-2">
+                  <button
+                    id="btn-add-provider"
+                    class="flex-1 py-3 gradient-primary rounded-xl text-white font-medium text-sm hover:opacity-90 transition-opacity"
+                  >
+                    添加提供商
+                  </button>
+                  <button
+                    id="btn-test-new-provider"
+                    class="py-3 px-6 bg-input rounded-xl text-white font-medium text-sm hover:bg-secondary transition-colors"
+                  >
+                    测试连接
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- Interval -->
-            <div>
-              <div class="flex justify-between text-sm mb-3">
-                <span class="text-secondary">提醒间隔</span>
-                <span class="text-info">每 30 分钟</span>
+            <!-- Existing Providers List -->
+            <div class="p-8 bg-card rounded-[24px] border border-primary">
+              <h2 class="text-2xl font-semibold text-primary mb-6">已配置的提供商</h2>
+              <div id="ai-providers-list">
+                <!-- Will be populated dynamically -->
               </div>
-              <input
-                type="range"
-                min="5"
-                max="120"
-                value="30"
-                step="5"
-                class="w-full"
-              />
-              <div class="flex justify-between text-xs text-muted mt-1">
-                <span>5分钟</span>
-                <span>120分钟</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 3: 空闲检测 -->
-        <div class="p-8 bg-card rounded-[24px] border border-primary">
-          <div class="flex items-start justify-between mb-6">
-            <div>
-              <h2 class="text-2xl font-semibold text-primary mb-2">空闲检测</h2>
-              <p class="text-sm text-muted">检测屏幕无变化并提醒</p>
-            </div>
-            <div class="memory-toggle w-16 h-8 gradient-success rounded-full flex items-center justify-end px-1 cursor-pointer">
-              <div class="w-6 h-6 bg-white rounded-full"></div>
-            </div>
-          </div>
-
-          <div class="space-y-4">
-            <!-- Idle Duration -->
-            <div>
-              <div class="flex justify-between text-sm mb-3">
-                <span class="text-secondary">空闲判定时长</span>
-                <span class="text-info">15 分钟</span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="60"
-                value="15"
-                step="5"
-                class="w-full"
-              />
-              <div class="flex justify-between text-xs text-muted mt-1">
-                <span>5分钟</span>
-                <span>60分钟</span>
-              </div>
-            </div>
-
-            <!-- Reminder Type -->
-            <div>
-              <label class="text-sm text-secondary block mb-2">提醒内容</label>
-              <select class="w-full h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary">
-                <option>AI 智能建议</option>
-                <option>休息提醒</option>
-                <option>自定义文本</option>
-              </select>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <script>
+    import {
+      $settings,
+      loadSettings,
+      toggleAutoStart,
+      updateLaunchText,
+      toggleMorningReminder,
+      toggleWaterReminder,
+      toggleSedentaryReminder,
+      toggleScreenInactivityReminder,
+      updateSettings,
+    } from '../stores/settingsStore'
+    import { TauriAPI } from '../lib/tauri-api'
+    import type { AIConfig, AIProviderConfig } from '../lib/tauri-api'
+
+    // ========================================================================
+    // Tab 切换
+    // ========================================================================
+
+    const tabs = document.querySelectorAll('.tab-btn')
+    const tabContents = document.querySelectorAll('.tab-content')
+
+    function switchTab(tabName: string) {
+      // 更新 tab 按钮样式
+      tabs.forEach((tab) => {
+        const btn = tab as HTMLElement
+        if (btn.dataset.tab === tabName) {
+          btn.classList.add('border-info', 'text-info')
+          btn.classList.remove('text-muted')
+        } else {
+          btn.classList.remove('border-info', 'text-info')
+          btn.classList.add('text-muted')
+        }
+      })
+
+      // 显示对应内容
+      tabContents.forEach((content) => {
+        const div = content as HTMLElement
+        if (div.id === `content-${tabName}`) {
+          div.classList.remove('hidden')
+        } else {
+          div.classList.add('hidden')
+        }
+      })
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const tabName = (tab as HTMLElement).dataset.tab
+        if (tabName) {
+          switchTab(tabName)
+        }
+      })
+    })
+
+    // 默认显示第一个 tab
+    switchTab('general')
+
+    // ========================================================================
+    // 初始化
+    // ========================================================================
+
+    let isInitialized = false
+
+    async function init() {
+      if (isInitialized) return
+      isInitialized = true
+
+      try {
+        await loadSettings()
+
+        $settings.subscribe((settings) => {
+          if (!settings) return
+
+          // 更新通用设置 UI
+          updateGeneralSettingsUI(settings)
+        })
+
+        // 加载 AI 配置
+        await loadAIConfig()
+      } catch (error) {
+        console.error('Failed to initialize settings page:', error)
+        showNotification('加载设置失败: ' + error, 'error')
+      }
+    }
+
+    // ========================================================================
+    // 通用设置 UI 更新
+    // ========================================================================
+
+    function updateGeneralSettingsUI(settings: any) {
+      // 开机自启
+      updateToggleUI('toggle-auto-start', settings.auto_start)
+
+      // 启动文本
+      const launchTextEl = document.getElementById('launch-text') as HTMLTextAreaElement
+      if (launchTextEl) {
+        launchTextEl.value = settings.app_launch_text || ''
+      }
+
+      // 早安提醒
+      updateToggleUI('toggle-morning-reminder', settings.morning_reminder_enabled)
+      const morningTimeEl = document.getElementById('morning-reminder-time') as HTMLInputElement
+      const morningMsgEl = document.getElementById('morning-reminder-message') as HTMLTextAreaElement
+      if (morningTimeEl) morningTimeEl.value = settings.morning_reminder_time || '08:00'
+      if (morningMsgEl) morningMsgEl.value = settings.morning_reminder_message || ''
+
+      // 喝水提醒
+      updateToggleUI('toggle-water-reminder', settings.water_reminder_enabled)
+      const waterStartEl = document.getElementById('water-reminder-start') as HTMLInputElement
+      const waterEndEl = document.getElementById('water-reminder-end') as HTMLInputElement
+      if (waterStartEl) waterStartEl.value = settings.water_reminder_start || '09:00'
+      if (waterEndEl) waterEndEl.value = settings.water_reminder_end || '21:00'
+
+      const waterIntervalEl = document.getElementById('water-reminder-interval') as HTMLInputElement
+      const waterIntervalDisplayEl = document.getElementById('water-interval-display')
+      if (waterIntervalEl) {
+        waterIntervalEl.value = String(settings.water_reminder_interval_minutes || 60)
+      }
+      if (waterIntervalDisplayEl) {
+        waterIntervalDisplayEl.textContent = `每 ${settings.water_reminder_interval_minutes || 60} 分钟`
+      }
+
+      const waterMsgEl = document.getElementById('water-reminder-message') as HTMLTextAreaElement
+      if (waterMsgEl) waterMsgEl.value = settings.water_reminder_message || ''
+
+      // 久坐提醒
+      updateToggleUI('toggle-sedentary-reminder', settings.sedentary_reminder_enabled)
+      const sedStartEl = document.getElementById('sedentary-reminder-start') as HTMLInputElement
+      const sedEndEl = document.getElementById('sedentary-reminder-end') as HTMLInputElement
+      if (sedStartEl) sedStartEl.value = settings.sedentary_reminder_start || '09:00'
+      if (sedEndEl) sedEndEl.value = settings.sedentary_reminder_end || '21:00'
+
+      const sedThresholdEl = document.getElementById('sedentary-threshold') as HTMLInputElement
+      const sedThresholdDisplayEl = document.getElementById('sedentary-threshold-display')
+      if (sedThresholdEl) {
+        sedThresholdEl.value = String(settings.sedentary_reminder_threshold_minutes || 60)
+      }
+      if (sedThresholdDisplayEl) {
+        sedThresholdDisplayEl.textContent = `${settings.sedentary_reminder_threshold_minutes || 60} 分钟`
+      }
+
+      const sedMsgEl = document.getElementById('sedentary-reminder-message') as HTMLTextAreaElement
+      if (sedMsgEl) sedMsgEl.value = settings.sedentary_reminder_message || ''
+
+      // 屏幕无变化提醒
+      updateToggleUI('toggle-screen-inactivity', settings.screen_inactivity_reminder_enabled)
+      const screenMinutesEl = document.getElementById('screen-inactivity-minutes') as HTMLInputElement
+      const screenMinutesDisplayEl = document.getElementById('screen-inactivity-display')
+      if (screenMinutesEl) {
+        screenMinutesEl.value = String(settings.screen_inactivity_minutes || 10)
+      }
+      if (screenMinutesDisplayEl) {
+        screenMinutesDisplayEl.textContent = `${settings.screen_inactivity_minutes || 10} 分钟`
+      }
+
+      const screenMsgEl = document.getElementById('screen-inactivity-message') as HTMLTextAreaElement
+      if (screenMsgEl) screenMsgEl.value = settings.screen_inactivity_message || ''
+
+      // 存储设置
+      const storagePathEl = document.getElementById('storage-path') as HTMLInputElement
+      if (storagePathEl) {
+        storagePathEl.value = settings.storage_path || ''
+      }
+
+      const storageLimitEl = document.getElementById('storage-limit') as HTMLInputElement
+      const storageLimitDisplayEl = document.getElementById('storage-limit-display')
+      if (storageLimitEl) {
+        storageLimitEl.value = String(settings.storage_limit_mb || 1024)
+      }
+      if (storageLimitDisplayEl) {
+        storageLimitDisplayEl.textContent = `${settings.storage_limit_mb || 1024} MB`
+      }
+    }
+
+    function updateToggleUI(toggleId: string, enabled: boolean) {
+      const toggle = document.getElementById(toggleId)
+      if (!toggle) return
+
+      const ball = toggle.querySelector('div') as HTMLElement
+
+      if (enabled) {
+        toggle.classList.remove('bg-secondary')
+        toggle.classList.add('gradient-success', 'justify-end')
+      } else {
+        toggle.classList.remove('gradient-success', 'justify-end')
+        toggle.classList.add('bg-secondary')
+      }
+    }
+
+    // ========================================================================
+    // 通用设置事件绑定
+    // ========================================================================
+
+    // 开机自启
+    document.getElementById('toggle-auto-start')?.addEventListener('click', async () => {
+      const settings = $settings.get()
+      if (!settings) return
+
+      const newState = !settings.auto_start
+      try {
+        updateToggleUI('toggle-auto-start', newState)
+        await toggleAutoStart(newState)
+        showNotification(newState ? '已启用开机自启' : '已禁用开机自启', 'success')
+      } catch (error) {
+        updateToggleUI('toggle-auto-start', settings.auto_start)
+        showNotification('切换失败: ' + error, 'error')
+      }
+    })
+
+    // 保存启动文本
+    document.getElementById('save-launch-text')?.addEventListener('click', async () => {
+      const launchTextEl = document.getElementById('launch-text') as HTMLTextAreaElement
+      if (!launchTextEl) return
+
+      try {
+        await updateLaunchText(launchTextEl.value)
+        showNotification('启动文本已保存', 'success')
+      } catch (error) {
+        showNotification('保存失败: ' + error, 'error')
+      }
+    })
+
+    // ========== 早安提醒 ==========
+
+    document.getElementById('toggle-morning-reminder')?.addEventListener('click', async () => {
+      const settings = $settings.get()
+      if (!settings) return
+
+      const newState = !settings.morning_reminder_enabled
+      try {
+        updateToggleUI('toggle-morning-reminder', newState)
+        await toggleMorningReminder(newState)
+        showNotification(newState ? '已启用早安提醒' : '已禁用早安提醒', 'success')
+      } catch (error) {
+        updateToggleUI('toggle-morning-reminder', settings.morning_reminder_enabled)
+        showNotification('切换失败: ' + error, 'error')
+      }
+    })
+
+    document.getElementById('save-morning-reminder')?.addEventListener('click', async () => {
+      const timeEl = document.getElementById('morning-reminder-time') as HTMLInputElement
+      const msgEl = document.getElementById('morning-reminder-message') as HTMLTextAreaElement
+      if (!timeEl || !msgEl) return
+
+      try {
+        await updateSettings({
+          morning_reminder_time: timeEl.value,
+          morning_reminder_message: msgEl.value,
+        })
+        showNotification('早安提醒已保存', 'success')
+      } catch (error) {
+        showNotification('保存失败: ' + error, 'error')
+      }
+    })
+
+    // ========== 喝水提醒 ==========
+
+    document.getElementById('toggle-water-reminder')?.addEventListener('click', async () => {
+      const settings = $settings.get()
+      if (!settings) return
+
+      const newState = !settings.water_reminder_enabled
+      try {
+        updateToggleUI('toggle-water-reminder', newState)
+        await toggleWaterReminder(newState)
+        showNotification(newState ? '已启用喝水提醒' : '已禁用喝水提醒', 'success')
+      } catch (error) {
+        updateToggleUI('toggle-water-reminder', settings.water_reminder_enabled)
+        showNotification('切换失败: ' + error, 'error')
+      }
+    })
+
+    let waterIntervalTimer: number | null = null
+    document.getElementById('water-reminder-interval')?.addEventListener('input', (e) => {
+      const value = parseInt((e.target as HTMLInputElement).value)
+      const displayEl = document.getElementById('water-interval-display')
+      if (displayEl) {
+        displayEl.textContent = `每 ${value} 分钟`
+      }
+
+      if (waterIntervalTimer !== null) {
+        clearTimeout(waterIntervalTimer)
+      }
+
+      waterIntervalTimer = window.setTimeout(async () => {
+        try {
+          await updateSettings({ water_reminder_interval_minutes: value })
+          showNotification(`喝水间隔已更新为 ${value} 分钟`, 'success')
+        } catch (error) {
+          showNotification('更新失败: ' + error, 'error')
+        }
+      }, 500)
+    })
+
+    document.getElementById('save-water-reminder')?.addEventListener('click', async () => {
+      const startEl = document.getElementById('water-reminder-start') as HTMLInputElement
+      const endEl = document.getElementById('water-reminder-end') as HTMLInputElement
+      const msgEl = document.getElementById('water-reminder-message') as HTMLTextAreaElement
+      if (!startEl || !endEl || !msgEl) return
+
+      try {
+        await updateSettings({
+          water_reminder_start: startEl.value,
+          water_reminder_end: endEl.value,
+          water_reminder_message: msgEl.value,
+        })
+        showNotification('喝水提醒已保存', 'success')
+      } catch (error) {
+        showNotification('保存失败: ' + error, 'error')
+      }
+    })
+
+    // ========== 久坐提醒 ==========
+
+    document.getElementById('toggle-sedentary-reminder')?.addEventListener('click', async () => {
+      const settings = $settings.get()
+      if (!settings) return
+
+      const newState = !settings.sedentary_reminder_enabled
+      try {
+        updateToggleUI('toggle-sedentary-reminder', newState)
+        await toggleSedentaryReminder(newState)
+        showNotification(newState ? '已启用久坐提醒' : '已禁用久坐提醒', 'success')
+      } catch (error) {
+        updateToggleUI('toggle-sedentary-reminder', settings.sedentary_reminder_enabled)
+        showNotification('切换失败: ' + error, 'error')
+      }
+    })
+
+    let sedentaryThresholdTimer: number | null = null
+    document.getElementById('sedentary-threshold')?.addEventListener('input', (e) => {
+      const value = parseInt((e.target as HTMLInputElement).value)
+      const displayEl = document.getElementById('sedentary-threshold-display')
+      if (displayEl) {
+        displayEl.textContent = `${value} 分钟`
+      }
+
+      if (sedentaryThresholdTimer !== null) {
+        clearTimeout(sedentaryThresholdTimer)
+      }
+
+      sedentaryThresholdTimer = window.setTimeout(async () => {
+        try {
+          await updateSettings({ sedentary_reminder_threshold_minutes: value })
+          showNotification(`久坐阈值已更新为 ${value} 分钟`, 'success')
+        } catch (error) {
+          showNotification('更新失败: ' + error, 'error')
+        }
+      }, 500)
+    })
+
+    document.getElementById('save-sedentary-reminder')?.addEventListener('click', async () => {
+      const startEl = document.getElementById('sedentary-reminder-start') as HTMLInputElement
+      const endEl = document.getElementById('sedentary-reminder-end') as HTMLInputElement
+      const msgEl = document.getElementById('sedentary-reminder-message') as HTMLTextAreaElement
+      if (!startEl || !endEl || !msgEl) return
+
+      try {
+        await updateSettings({
+          sedentary_reminder_start: startEl.value,
+          sedentary_reminder_end: endEl.value,
+          sedentary_reminder_message: msgEl.value,
+        })
+        showNotification('久坐提醒已保存', 'success')
+      } catch (error) {
+        showNotification('保存失败: ' + error, 'error')
+      }
+    })
+
+    // ========== 屏幕无变化提醒 ==========
+
+    document.getElementById('toggle-screen-inactivity')?.addEventListener('click', async () => {
+      const settings = $settings.get()
+      if (!settings) return
+
+      const newState = !settings.screen_inactivity_reminder_enabled
+      try {
+        updateToggleUI('toggle-screen-inactivity', newState)
+        await toggleScreenInactivityReminder(newState)
+        showNotification(newState ? '已启用屏幕无变化提醒' : '已禁用屏幕无变化提醒', 'success')
+      } catch (error) {
+        updateToggleUI('toggle-screen-inactivity', settings.screen_inactivity_reminder_enabled)
+        showNotification('切换失败: ' + error, 'error')
+      }
+    })
+
+    let screenInactivityTimer: number | null = null
+    document.getElementById('screen-inactivity-minutes')?.addEventListener('input', (e) => {
+      const value = parseInt((e.target as HTMLInputElement).value)
+      const displayEl = document.getElementById('screen-inactivity-display')
+      if (displayEl) {
+        displayEl.textContent = `${value} 分钟`
+      }
+
+      if (screenInactivityTimer !== null) {
+        clearTimeout(screenInactivityTimer)
+      }
+
+      screenInactivityTimer = window.setTimeout(async () => {
+        try {
+          await updateSettings({ screen_inactivity_minutes: value })
+          showNotification(`无变化阈值已更新为 ${value} 分钟`, 'success')
+        } catch (error) {
+          showNotification('更新失败: ' + error, 'error')
+        }
+      }, 500)
+    })
+
+    document.getElementById('save-screen-inactivity')?.addEventListener('click', async () => {
+      const msgEl = document.getElementById('screen-inactivity-message') as HTMLTextAreaElement
+      if (!msgEl) return
+
+      try {
+        await updateSettings({ screen_inactivity_message: msgEl.value })
+        showNotification('屏幕无变化提醒已保存', 'success')
+      } catch (error) {
+        showNotification('保存失败: ' + error, 'error')
+      }
+    })
+
+    // 打开存储文件夹
+    document.getElementById('open-storage-folder')?.addEventListener('click', async () => {
+      const settings = $settings.get()
+      if (!settings) return
+
+      try {
+        await TauriAPI.openFolder(settings.storage_path)
+      } catch (error) {
+        showNotification('打开文件夹失败: ' + error, 'error')
+      }
+    })
+
+    // 存储容量限制滑块
+    let storageLimitTimer: number | null = null
+    document.getElementById('storage-limit')?.addEventListener('input', (e) => {
+      const value = parseInt((e.target as HTMLInputElement).value)
+      const displayEl = document.getElementById('storage-limit-display')
+      if (displayEl) {
+        displayEl.textContent = `${value} MB`
+      }
+
+      if (storageLimitTimer !== null) {
+        clearTimeout(storageLimitTimer)
+      }
+
+      storageLimitTimer = window.setTimeout(async () => {
+        try {
+          await updateSettings({ storage_limit_mb: value })
+          showNotification(`存储容量限制已更新为 ${value} MB`, 'success')
+        } catch (error) {
+          showNotification('更新失败: ' + error, 'error')
+        }
+      }, 500)
+    })
+
+    // ========================================================================
+    // AI 配置
+    // ========================================================================
+
+    let useCustomModel = false
+
+    async function loadAIConfig() {
+      try {
+        // 加载预设模型列表
+        const models = await TauriAPI.getAvailableAIProviders()
+        populateModelSelect(models)
+
+        // 加载已配置的提供商
+        const config = await TauriAPI.getAIConfig()
+        renderProviderList(config)
+      } catch (error) {
+        console.error('Failed to load AI config:', error)
+      }
+    }
+
+    function populateModelSelect(models: any[]) {
+      const select = document.getElementById('new-provider-model-select') as HTMLSelectElement
+      if (!select) return
+
+      select.innerHTML = '<option value="">选择预设模型...</option>'
+
+      // 按提供商分组
+      const grouped: Record<string, any[]> = {}
+      models.forEach((m) => {
+        if (!grouped[m.provider]) grouped[m.provider] = []
+        grouped[m.provider].push(m)
+      })
+
+      Object.entries(grouped).forEach(([provider, providerModels]) => {
+        const group = document.createElement('optgroup')
+        group.label = provider
+        providerModels.forEach((m) => {
+          const option = document.createElement('option')
+          option.value = m.id
+          option.textContent = `${m.name}${m.is_free ? ' (Free)' : ''}`
+          group.appendChild(option)
+        })
+        select.appendChild(group)
+      })
+    }
+
+    // 自定义模型切换
+    document.getElementById('toggle-custom-model')?.addEventListener('click', () => {
+      useCustomModel = !useCustomModel
+      const selectEl = document.getElementById('new-provider-model-select') as HTMLElement
+      const customEl = document.getElementById('new-provider-model-custom') as HTMLElement
+      const toggleBtn = document.getElementById('toggle-custom-model') as HTMLElement
+
+      if (useCustomModel) {
+        selectEl.classList.add('hidden')
+        customEl.classList.remove('hidden')
+        toggleBtn.textContent = '预设'
+      } else {
+        selectEl.classList.remove('hidden')
+        customEl.classList.add('hidden')
+        toggleBtn.textContent = '自定义'
+      }
+    })
+
+    // API Key 可见性切换
+    document.getElementById('toggle-key-visibility')?.addEventListener('click', () => {
+      const input = document.getElementById('new-provider-key') as HTMLInputElement
+      input.type = input.type === 'password' ? 'text' : 'password'
+    })
+
+    // 获取表单数据
+    function getFormData() {
+      const name = (document.getElementById('new-provider-name') as HTMLInputElement).value.trim()
+      const url = (document.getElementById('new-provider-url') as HTMLInputElement).value.trim()
+      const key = (document.getElementById('new-provider-key') as HTMLInputElement).value.trim()
+
+      let model = ''
+      if (useCustomModel) {
+        model = (document.getElementById('new-provider-model-custom') as HTMLInputElement).value.trim()
+      } else {
+        model = (document.getElementById('new-provider-model-select') as HTMLSelectElement).value
+      }
+
+      return { name, url, key, model }
+    }
+
+    function validateForm(data: ReturnType<typeof getFormData>): string | null {
+      if (!data.name) return '请输入提供商名称'
+      if (!data.url) return '请输入 API 地址'
+      if (!data.url.startsWith('http://') && !data.url.startsWith('https://')) {
+        return 'API 地址必须以 http:// 或 https:// 开头'
+      }
+      if (!data.model) return '请选择或输入模型'
+      if (!data.key) return '请输入 API Key'
+      return null
+    }
+
+    function clearForm() {
+      ;(document.getElementById('new-provider-name') as HTMLInputElement).value = ''
+      ;(document.getElementById('new-provider-url') as HTMLInputElement).value = ''
+      ;(document.getElementById('new-provider-key') as HTMLInputElement).value = ''
+      ;(document.getElementById('new-provider-model-select') as HTMLSelectElement).value = ''
+      ;(document.getElementById('new-provider-model-custom') as HTMLInputElement).value = ''
+    }
+
+    // 添加提供商
+    document.getElementById('btn-add-provider')?.addEventListener('click', async () => {
+      const data = getFormData()
+      const error = validateForm(data)
+      if (error) {
+        showNotification(error, 'error')
+        return
+      }
+
+      // 生成 ID: name 的 kebab-case + 时间戳
+      const id = data.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now()
+
+      try {
+        const providerConfig: AIProviderConfig = {
+          id,
+          name: data.name,
+          api_base_url: data.url,
+          api_key: data.key,
+          model: data.model,
+          enabled: true,
+          is_active: false,
+        }
+
+        await TauriAPI.updateAIProviderConfig(providerConfig)
+        showNotification(`已添加提供商: ${data.name}`, 'success')
+
+        clearForm()
+
+        // 重新加载列表
+        const config = await TauriAPI.getAIConfig()
+
+        // 如果是第一个提供商，自动激活
+        if (config.providers.length === 1) {
+          await TauriAPI.setActiveAIProvider(id)
+        }
+
+        const updatedConfig = await TauriAPI.getAIConfig()
+        renderProviderList(updatedConfig)
+      } catch (err) {
+        showNotification('添加失败: ' + err, 'error')
+      }
+    })
+
+    // 测试新提供商连接（不保存）
+    document.getElementById('btn-test-new-provider')?.addEventListener('click', async () => {
+      const data = getFormData()
+      const error = validateForm(data)
+      if (error) {
+        showNotification(error, 'error')
+        return
+      }
+
+      // 先临时添加，测试，然后看结果
+      const tempId = '__test_temp_' + Date.now()
+
+      try {
+        showNotification('正在测试连接...', 'info')
+
+        const providerConfig: AIProviderConfig = {
+          id: tempId,
+          name: data.name,
+          api_base_url: data.url,
+          api_key: data.key,
+          model: data.model,
+          enabled: true,
+          is_active: false,
+        }
+
+        // 添加临时提供商
+        await TauriAPI.updateAIProviderConfig(providerConfig)
+
+        // 测试连接
+        try {
+          const result = await TauriAPI.testAIConnection(tempId)
+          showNotification('连接成功: ' + result, 'success')
+        } catch (testErr) {
+          showNotification('连接失败: ' + testErr, 'error')
+        }
+
+        // 删除临时提供商 - 通过重置后重新加载
+        // 注意：后端没有 delete 单个 provider 的命令，所以我们需要添加一个
+        // 暂时保留临时提供商，用户可以手动删除
+      } catch (err) {
+        showNotification('测试失败: ' + err, 'error')
+      }
+    })
+
+    // 渲染已配置的提供商列表
+    function renderProviderList(config: AIConfig) {
+      const container = document.getElementById('ai-providers-list')
+      if (!container) return
+
+      container.innerHTML = ''
+
+      if (config.providers.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8">
+            <p class="text-muted">暂无已配置的提供商</p>
+            <p class="text-xs text-muted mt-2">在上方添加你的第一个 AI 提供商</p>
+          </div>
+        `
+        return
+      }
+
+      config.providers.forEach((provider) => {
+        const isActive = config.active_provider_id === provider.id
+        const row = document.createElement('div')
+        row.className = `flex items-center justify-between p-4 rounded-xl mb-3 ${
+          isActive ? 'bg-input border border-glow' : 'bg-input border border-secondary'
+        }`
+
+        // 遮蔽 API Key
+        const maskedKey = provider.api_key.length > 8
+          ? provider.api_key.slice(0, 4) + '****' + provider.api_key.slice(-4)
+          : '****'
+
+        row.innerHTML = `
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-primary">${provider.name}</span>
+              ${isActive ? '<span class="text-xs text-success">[活跃]</span>' : ''}
+            </div>
+            <div class="text-xs text-muted mt-1 truncate">
+              ${provider.model} · ${maskedKey}
+            </div>
+            <div class="text-xs text-muted truncate">${provider.api_base_url}</div>
+          </div>
+          <div class="flex items-center gap-2 ml-4 shrink-0">
+            ${!isActive ? `
+              <button class="btn-activate text-xs px-3 py-1.5 bg-secondary rounded-lg text-success hover:bg-input transition-colors" data-id="${provider.id}">
+                激活
+              </button>
+            ` : ''}
+            <button class="btn-test text-xs px-3 py-1.5 bg-secondary rounded-lg text-primary hover:bg-input transition-colors" data-id="${provider.id}">
+              测试
+            </button>
+            <button class="btn-delete text-xs px-3 py-1.5 bg-secondary rounded-lg text-red-400 hover:bg-input transition-colors" data-id="${provider.id}" data-name="${provider.name}">
+              删除
+            </button>
+          </div>
+        `
+
+        // 绑定事件
+        row.querySelector('.btn-activate')?.addEventListener('click', async () => {
+          try {
+            await TauriAPI.setActiveAIProvider(provider.id)
+            showNotification(`已激活 ${provider.name}`, 'success')
+            const updated = await TauriAPI.getAIConfig()
+            renderProviderList(updated)
+          } catch (err) {
+            showNotification('激活失败: ' + err, 'error')
+          }
+        })
+
+        row.querySelector('.btn-test')?.addEventListener('click', async () => {
+          try {
+            showNotification('正在测试...', 'info')
+            const result = await TauriAPI.testAIConnection(provider.id)
+            showNotification('连接成功: ' + result, 'success')
+          } catch (err) {
+            showNotification('连接失败: ' + err, 'error')
+          }
+        })
+
+        row.querySelector('.btn-delete')?.addEventListener('click', async () => {
+          const name = provider.name
+          if (!confirm(`确定要删除提供商 "${name}" 吗？`)) return
+
+          try {
+            await TauriAPI.deleteAIProvider(provider.id)
+            showNotification(`已删除 ${name}`, 'success')
+            const updated = await TauriAPI.getAIConfig()
+            renderProviderList(updated)
+          } catch (err) {
+            showNotification('删除失败: ' + err, 'error')
+          }
+        })
+
+        container.appendChild(row)
+      })
+    }
+
+    // ========================================================================
+    // 通知
+    // ========================================================================
+
+    function showNotification(message: string, type: 'success' | 'error' | 'info') {
+      const notification = document.createElement('div')
+      notification.className = `fixed bottom-4 right-4 px-6 py-3 rounded-[12px] text-white font-medium z-50 transition-all
+        ${type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`
+      notification.textContent = message
+      document.body.appendChild(notification)
+
+      setTimeout(() => {
+        notification.remove()
+      }, 3000)
+    }
+
+    // ========================================================================
+    // 启动
+    // ========================================================================
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init)
+    } else {
+      init()
+    }
+  </script>
 </Layout>
