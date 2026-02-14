@@ -112,6 +112,32 @@ pub async fn delete_screenshot(
     Ok(db_result.map(|_| true).into())
 }
 
+/// 调度器状态信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchedulerStatus {
+    pub is_running: bool,
+    pub interval_seconds: u8,
+    pub memory_enabled: bool,
+    pub storage_path: String,
+}
+
+/// 获取调度器状态（调试用）
+#[tauri::command]
+pub async fn get_scheduler_status(state: State<'_, AppState>) -> Result<ApiResponse<SchedulerStatus>, String> {
+    let scheduler = state.scheduler.lock().await;
+    let is_running = scheduler.is_running().await;
+    let interval = scheduler.interval_seconds;
+    let memory_enabled = state.settings.is_memory_enabled();
+    let storage_path = state.settings.get_storage_path().to_string_lossy().to_string();
+
+    Ok(ApiResponse::success(SchedulerStatus {
+        is_running,
+        interval_seconds: interval,
+        memory_enabled,
+        storage_path,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     // Tests will be added in integration tests

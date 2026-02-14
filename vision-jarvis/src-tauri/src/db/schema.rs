@@ -81,20 +81,34 @@ pub struct MainActivity {
 }
 
 /// 应用设置
+/// NOTE: 与 settings/config.rs 中的 AppSettings 保持同步
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
     pub memory_enabled: bool,
-    pub capture_interval_seconds: u8, // 1-15
+    pub capture_interval_seconds: u8,
     pub storage_path: String,
     pub storage_limit_mb: u64,
     pub auto_start: bool,
     pub app_launch_text: String,
-    pub timed_reminder_enabled: bool,
-    pub timed_reminder_start: String, // "09:00"
-    pub timed_reminder_end: String,   // "21:00"
-    pub timed_reminder_interval_minutes: u16,
-    pub inactivity_reminder_enabled: bool,
-    pub inactivity_threshold_minutes: u16,
+    // 固定提醒
+    pub morning_reminder_enabled: bool,
+    pub morning_reminder_time: String,
+    pub morning_reminder_message: String,
+    pub water_reminder_enabled: bool,
+    pub water_reminder_start: String,
+    pub water_reminder_end: String,
+    pub water_reminder_interval_minutes: u16,
+    pub water_reminder_message: String,
+    pub sedentary_reminder_enabled: bool,
+    pub sedentary_reminder_start: String,
+    pub sedentary_reminder_end: String,
+    pub sedentary_reminder_threshold_minutes: u16,
+    pub sedentary_reminder_message: String,
+    // 智能提醒
+    pub screen_inactivity_reminder_enabled: bool,
+    pub screen_inactivity_minutes: u16,
+    pub screen_inactivity_message: String,
     pub openai_api_key: Option<String>,
 }
 
@@ -104,17 +118,31 @@ impl Default for AppSettings {
             memory_enabled: true,
             capture_interval_seconds: 5,
             storage_path: String::from("./screenshots"),
-            storage_limit_mb: 1024, // 1GB
+            storage_limit_mb: 1024,
             auto_start: false,
             app_launch_text: String::from(
                 "If today were the last day of my life, would I want to do what I am about to do today?"
             ),
-            timed_reminder_enabled: false,
-            timed_reminder_start: String::from("09:00"),
-            timed_reminder_end: String::from("21:00"),
-            timed_reminder_interval_minutes: 30,
-            inactivity_reminder_enabled: false,
-            inactivity_threshold_minutes: 10,
+            morning_reminder_enabled: false,
+            morning_reminder_time: String::from("08:00"),
+            morning_reminder_message: String::from(
+                "If today is the last day of my life, would I want to do what I am about to do today?"
+            ),
+            water_reminder_enabled: false,
+            water_reminder_start: String::from("09:00"),
+            water_reminder_end: String::from("21:00"),
+            water_reminder_interval_minutes: 60,
+            water_reminder_message: String::from("该喝喝水了"),
+            sedentary_reminder_enabled: false,
+            sedentary_reminder_start: String::from("09:00"),
+            sedentary_reminder_end: String::from("21:00"),
+            sedentary_reminder_threshold_minutes: 60,
+            sedentary_reminder_message: String::from(
+                "你已经连续工作很久了，再厉害的人也需要休息放松，是时候站起来走动走了"
+            ),
+            screen_inactivity_reminder_enabled: false,
+            screen_inactivity_minutes: 10,
+            screen_inactivity_message: String::new(),
             openai_api_key: None,
         }
     }

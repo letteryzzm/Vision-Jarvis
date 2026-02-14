@@ -8,6 +8,9 @@ use std::sync::Arc;
 use crate::db::Database;
 use crate::settings::SettingsManager;
 use crate::capture::ScreenCapture;
+use crate::capture::scheduler::CaptureScheduler;
+use crate::notification::scheduler::NotificationScheduler;
+use crate::error::AppError;
 
 pub mod screenshot;
 pub mod memory;
@@ -24,21 +27,34 @@ pub struct AppState {
     pub db: Arc<Database>,
     pub settings: Arc<SettingsManager>,
     pub screen_capture: Arc<ScreenCapture>,
+    pub scheduler: Arc<tokio::sync::Mutex<CaptureScheduler>>,
+    pub notification_scheduler: Arc<NotificationScheduler>,
 }
 
 impl AppState {
     pub fn new(db: Database, settings: SettingsManager) -> Self {
+        let db = Arc::new(db);
         let settings = Arc::new(settings);
         let storage_path = settings.get_storage_path();
-        let screen_capture = Arc::new(
-            ScreenCapture::new(storage_path)
-                .expect("Failed to create ScreenCapture")
+        let interval = settings.get_capture_interval();
+
+        let screen_capture = ScreenCapture::new(storage_path)
+            .expect("Failed to create ScreenCapture");
+
+        let scheduler = CaptureScheduler::new(screen_capture.clone(), interval)
+            .with_db(Arc::clone(&db));
+
+        let notification_scheduler = NotificationScheduler::new(
+            Arc::clone(&db),
+            Arc::clone(&settings),
         );
 
         Self {
-            db: Arc::new(db),
+            db,
             settings,
-            screen_capture,
+            screen_capture: Arc::new(screen_capture),
+            scheduler: Arc::new(tokio::sync::Mutex::new(scheduler)),
+            notification_scheduler: Arc::new(notification_scheduler),
         }
     }
 }
@@ -76,6 +92,13 @@ impl<T, E: std::fmt::Display> From<Result<T, E>> for ApiResponse<T> {
             Ok(data) => Self::success(data),
             Err(e) => Self::error(e.to_string()),
         }
+    }
+}
+
+/// 从 AppError 转换为 ApiResponse
+impl<T> From<AppError> for ApiResponse<T> {
+    fn from(err: AppError) -> Self {
+        Self::error(err.to_string())
     }
 }
 

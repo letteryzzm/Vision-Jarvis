@@ -1,12 +1,16 @@
 // 模块声明
+mod error;
 mod db;
 mod settings;
 mod capture;
-mod ai;
+pub mod ai;
 mod memory;
 mod notification;
 mod commands;
 mod storage;
+
+// 导出错误类型供其他模块使用
+pub use error::{AppError, AppResult};
 
 use commands::{AppState, AIConfigState};
 use tauri::{Manager, LogicalPosition};
@@ -75,6 +79,40 @@ pub fn run() {
                 }
             }
 
+            // 启动截图调度器（如果记忆功能启用）
+            let state = app.state::<AppState>();
+            let memory_enabled = state.settings.is_memory_enabled();
+            let storage_path = state.settings.get_storage_path();
+            eprintln!("[Vision-Jarvis] memory_enabled={}, storage_path={}", memory_enabled, storage_path.display());
+
+            if memory_enabled {
+                let scheduler = state.scheduler.clone();
+
+                tauri::async_runtime::spawn(async move {
+                    let mut scheduler = scheduler.lock().await;
+                    eprintln!("[Vision-Jarvis] Starting screenshot scheduler (interval: {}s)...", scheduler.interval_seconds);
+                    match scheduler.start().await {
+                        Ok(_) => {
+                            eprintln!("[Vision-Jarvis] Screenshot scheduler started successfully!");
+                        }
+                        Err(e) => {
+                            eprintln!("[Vision-Jarvis] ERROR: Failed to start scheduler: {}", e);
+                        }
+                    }
+                });
+            } else {
+                eprintln!("[Vision-Jarvis] Memory disabled, skipping screenshot scheduler");
+            }
+
+            // 启动通知调度器
+            let notif_scheduler = state.notification_scheduler.clone();
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                eprintln!("[Vision-Jarvis] Starting notification scheduler...");
+                notif_scheduler.start(app_handle);
+                eprintln!("[Vision-Jarvis] Notification scheduler started!");
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -84,6 +122,7 @@ pub fn run() {
             commands::screenshot::capture_screenshot,
             commands::screenshot::get_screenshots,
             commands::screenshot::delete_screenshot,
+            commands::screenshot::get_scheduler_status,
             // 记忆相关
             commands::memory::search_memories,
             commands::memory::get_memories_by_date,
@@ -110,6 +149,7 @@ pub fn run() {
             commands::ai_config::set_active_ai_provider,
             commands::ai_config::test_ai_connection,
             commands::ai_config::get_available_ai_providers,
+            commands::ai_config::delete_ai_provider,
             commands::ai_config::reset_ai_config,
             // 窗口管理相关
             commands::window::open_memory_window,
