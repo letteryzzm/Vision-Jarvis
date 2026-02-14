@@ -6,7 +6,7 @@
  */
 
 import { atom } from 'nanostores'
-import type { Settings } from '../types/settings'
+import type { AppSettings } from '../types/settings'
 import { TauriAPI } from '../lib/tauri-api'
 import { DEFAULT_SETTINGS } from '../types/settings'
 
@@ -14,35 +14,15 @@ import { DEFAULT_SETTINGS } from '../types/settings'
 // 状态原子
 // ============================================================================
 
-/**
- * 设置数据
- * null 表示尚未加载
- */
-export const $settings = atom<Settings | null>(null)
-
-/**
- * 加载状态
- */
+export const $settings = atom<AppSettings | null>(null)
 export const $settingsLoading = atom<boolean>(false)
-
-/**
- * 错误信息
- */
 export const $settingsError = atom<string | null>(null)
-
-/**
- * 是否已初始化
- */
 export const $settingsInitialized = atom<boolean>(false)
 
 // ============================================================================
 // 操作函数
 // ============================================================================
 
-/**
- * 加载设置
- * 从后端获取设置并更新状态
- */
 export async function loadSettings(): Promise<void> {
   $settingsLoading.set(true)
   $settingsError.set(null)
@@ -54,9 +34,6 @@ export async function loadSettings(): Promise<void> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     $settingsError.set(errorMessage)
-    console.error('Failed to load settings:', error)
-
-    // 使用默认值
     $settings.set(DEFAULT_SETTINGS)
     $settingsInitialized.set(true)
   } finally {
@@ -64,11 +41,8 @@ export async function loadSettings(): Promise<void> {
   }
 }
 
-/**
- * 更新记忆设置
- */
-export async function updateMemorySettings(
-  updates: Partial<Settings['memory']>
+export async function updateSettings(
+  updates: Partial<AppSettings>
 ): Promise<void> {
   const current = $settings.get()
   if (!current) {
@@ -79,9 +53,7 @@ export async function updateMemorySettings(
   $settingsError.set(null)
 
   try {
-    const updated = await TauriAPI.updateSettings({
-      memory: updates
-    })
+    const updated = await TauriAPI.updateSettings(updates)
     $settings.set(updated)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -90,200 +62,27 @@ export async function updateMemorySettings(
   } finally {
     $settingsLoading.set(false)
   }
-}
-
-/**
- * 更新启动设置
- */
-export async function updateStartupSettings(
-  updates: Partial<Settings['popup']['startup']>
-): Promise<void> {
-  const current = $settings.get()
-  if (!current) {
-    throw new Error('Settings not initialized')
-  }
-
-  $settingsLoading.set(true)
-  $settingsError.set(null)
-
-  try {
-    const updated = await TauriAPI.updateSettings({
-      popup: {
-        startup: updates
-      }
-    })
-    $settings.set(updated)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    $settingsError.set(errorMessage)
-    throw error
-  } finally {
-    $settingsLoading.set(false)
-  }
-}
-
-/**
- * 更新定时提醒设置
- */
-export async function updateTimedReminderSettings(
-  updates: Partial<Settings['popup']['timedReminder']>
-): Promise<void> {
-  const current = $settings.get()
-  if (!current) {
-    throw new Error('Settings not initialized')
-  }
-
-  $settingsLoading.set(true)
-  $settingsError.set(null)
-
-  try {
-    const updated = await TauriAPI.updateSettings({
-      popup: {
-        timedReminder: updates
-      }
-    })
-    $settings.set(updated)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    $settingsError.set(errorMessage)
-    throw error
-  } finally {
-    $settingsLoading.set(false)
-  }
-}
-
-/**
- * 更新空闲提醒设置
- */
-export async function updateIdleReminderSettings(
-  updates: Partial<Settings['popup']['idleReminder']>
-): Promise<void> {
-  const current = $settings.get()
-  if (!current) {
-    throw new Error('Settings not initialized')
-  }
-
-  $settingsLoading.set(true)
-  $settingsError.set(null)
-
-  try {
-    const updated = await TauriAPI.updateSettings({
-      popup: {
-        idleReminder: updates
-      }
-    })
-    $settings.set(updated)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    $settingsError.set(errorMessage)
-    throw error
-  } finally {
-    $settingsLoading.set(false)
-  }
-}
-
-/**
- * 更新 API 提供商
- */
-export async function updateApiProviders(
-  providers: Settings['api']['providers']
-): Promise<void> {
-  const current = $settings.get()
-  if (!current) {
-    throw new Error('Settings not initialized')
-  }
-
-  $settingsLoading.set(true)
-  $settingsError.set(null)
-
-  try {
-    const updated = await TauriAPI.updateSettings({
-      api: {
-        providers
-      }
-    })
-    $settings.set(updated)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    $settingsError.set(errorMessage)
-    throw error
-  } finally {
-    $settingsLoading.set(false)
-  }
-}
-
-/**
- * 更新 UI 设置
- */
-export async function updateUiSettings(
-  updates: Partial<Settings['ui']>
-): Promise<void> {
-  const current = $settings.get()
-  if (!current) {
-    throw new Error('Settings not initialized')
-  }
-
-  $settingsLoading.set(true)
-  $settingsError.set(null)
-
-  try {
-    const updated = await TauriAPI.updateSettings({
-      ui: updates
-    })
-    $settings.set(updated)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    $settingsError.set(errorMessage)
-    throw error
-  } finally {
-    $settingsLoading.set(false)
-  }
-}
-
-/**
- * 重置设置
- */
-export async function resetSettings(
-  section: 'memory' | 'popup' | 'api' | 'ui' | 'all' = 'all'
-): Promise<void> {
-  $settingsLoading.set(true)
-  $settingsError.set(null)
-
-  try {
-    const updated = await TauriAPI.resetSettings({ section })
-    $settings.set(updated)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    $settingsError.set(errorMessage)
-    throw error
-  } finally {
-    $settingsLoading.set(false)
-  }
-}
-
-/**
- * 刷新设置
- * 从后端重新加载，清除缓存
- */
-export async function refreshSettings(): Promise<void> {
-  TauriAPI.invalidateCache()
-  await loadSettings()
-}
-
-/**
- * 清除错误
- */
-export function clearError(): void {
-  $settingsError.set(null)
 }
 
 // ============================================================================
-// 自动启动管理
+// 便捷操作
 // ============================================================================
 
-/**
- * 切换开机自启
- */
+export async function toggleMemory(enabled: boolean): Promise<void> {
+  await updateSettings({ memory_enabled: enabled })
+}
+
+export async function updateCaptureInterval(seconds: number): Promise<void> {
+  if (seconds < 1 || seconds > 15) {
+    throw new Error('截图间隔必须在 1-15 秒之间')
+  }
+  await updateSettings({ capture_interval_seconds: seconds })
+}
+
+export async function updateStoragePath(path: string): Promise<void> {
+  await updateSettings({ storage_path: path })
+}
+
 export async function toggleAutoStart(enabled: boolean): Promise<void> {
   try {
     if (enabled) {
@@ -291,9 +90,7 @@ export async function toggleAutoStart(enabled: boolean): Promise<void> {
     } else {
       await TauriAPI.disableAutoStart()
     }
-
-    // 更新设置
-    await updateStartupSettings({ autoStart: enabled })
+    await updateSettings({ auto_start: enabled })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     $settingsError.set(errorMessage)
@@ -301,36 +98,76 @@ export async function toggleAutoStart(enabled: boolean): Promise<void> {
   }
 }
 
+export async function updateLaunchText(text: string): Promise<void> {
+  await updateSettings({ app_launch_text: text })
+}
+
+// ========== 固定提醒 ==========
+
+export async function toggleMorningReminder(enabled: boolean): Promise<void> {
+  await updateSettings({ morning_reminder_enabled: enabled })
+}
+
+export async function toggleWaterReminder(enabled: boolean): Promise<void> {
+  await updateSettings({ water_reminder_enabled: enabled })
+}
+
+export async function toggleSedentaryReminder(enabled: boolean): Promise<void> {
+  await updateSettings({ sedentary_reminder_enabled: enabled })
+}
+
+// ========== 智能提醒 ==========
+
+export async function toggleScreenInactivityReminder(enabled: boolean): Promise<void> {
+  await updateSettings({ screen_inactivity_reminder_enabled: enabled })
+}
+
+// ============================================================================
+// 重置和刷新
+// ============================================================================
+
+export async function resetSettings(): Promise<void> {
+  $settingsLoading.set(true)
+  $settingsError.set(null)
+
+  try {
+    const updated = await TauriAPI.resetSettings()
+    $settings.set(updated)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    $settingsError.set(errorMessage)
+    throw error
+  } finally {
+    $settingsLoading.set(false)
+  }
+}
+
+export async function refreshSettings(): Promise<void> {
+  TauriAPI.invalidateCache()
+  await loadSettings()
+}
+
+export function clearError(): void {
+  $settingsError.set(null)
+}
+
 // ============================================================================
 // 辅助函数
 // ============================================================================
 
-/**
- * 获取当前设��（同步）
- * 如果未初始化，返回默认值
- */
-export function getCurrentSettings(): Settings {
+export function getCurrentSettings(): AppSettings {
   const settings = $settings.get()
   return settings || DEFAULT_SETTINGS
 }
 
-/**
- * 检查是否已加载
- */
 export function isSettingsLoaded(): boolean {
   return $settingsInitialized.get()
 }
 
-/**
- * 获取错误信息
- */
 export function getError(): string | null {
   return $settingsError.get()
 }
 
-/**
- * 检查是否正在加载
- */
 export function isLoading(): boolean {
   return $settingsLoading.get()
 }
