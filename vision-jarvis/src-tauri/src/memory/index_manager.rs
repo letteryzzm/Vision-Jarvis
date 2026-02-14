@@ -1,10 +1,12 @@
-/// 索引管理器 - 负责文件扫描、增量索引和向量存储
+/// 索引管理器 - 负责文件扫描、增量索引和存储
+///
+/// NOTE: Embedding 生成将在记忆系统重新设计时实现
+/// 当前仅支持文本分块和存储（无向量索引）
 ///
 /// 核心功能：
 /// 1. 递归扫描Markdown文件
 /// 2. 文件变更检测（基于哈希）
-/// 3. 文本分块 + Embedding生成
-/// 4. 存储到数据库（memory_chunks表）
+/// 3. 文本分块存储
 
 use anyhow::{Result, Context};
 use std::path::{Path, PathBuf};
@@ -15,7 +17,6 @@ use sha2::{Sha256, Digest};
 use uuid::Uuid;
 
 use crate::db::Database;
-use crate::ai::embeddings::EmbeddingGenerator;
 use super::chunker::{Chunker, ChunkConfig, TextChunk};
 
 /// 索引管理器配置
@@ -25,8 +26,6 @@ pub struct IndexConfig {
     pub memory_root: PathBuf,
     /// 分块配置
     pub chunk_config: ChunkConfig,
-    /// Embedding模型
-    pub embedding_model: String,
 }
 
 impl Default for IndexConfig {
@@ -34,7 +33,6 @@ impl Default for IndexConfig {
         Self {
             memory_root: PathBuf::from("./memory"),
             chunk_config: ChunkConfig::default(),
-            embedding_model: "text-embedding-3-small".to_string(),
         }
     }
 }
@@ -42,7 +40,6 @@ impl Default for IndexConfig {
 /// 索引管理器
 pub struct IndexManager {
     db: Arc<Database>,
-    embedder: EmbeddingGenerator,
     chunker: Chunker,
     config: IndexConfig,
 }
@@ -59,13 +56,11 @@ struct FileMetadata {
 impl IndexManager {
     pub fn new(
         db: Arc<Database>,
-        embedder: EmbeddingGenerator,
         config: IndexConfig,
     ) -> Self {
         let chunker = Chunker::new(config.chunk_config.clone());
         Self {
             db,
-            embedder,
             chunker,
             config,
         }
@@ -123,12 +118,8 @@ impl IndexManager {
             return Ok(stats);
         }
 
-        // 生成embeddings
-        let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-        let embeddings = self.generate_embeddings_with_cache(&texts).await?;
-
-        // 保存chunks
-        self.save_chunks(&metadata.path, &chunks, &embeddings)?;
+        // 保存chunks（不含 embedding，待记忆系统重新设计时实现）
+        self.save_chunks(&metadata.path, &chunks)?;
 
         // 更新文件元数据
         self.save_file_metadata(&metadata)?;
@@ -207,77 +198,6 @@ impl IndexManager {
         })
     }
 
-    /// 生成embeddings（带缓存）
-    async fn generate_embeddings_with_cache(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let mut embeddings = Vec::new();
-
-        for text in texts {
-            let hash = compute_text_hash(text);
-
-            // 尝试从缓存读取
-            if let Some(cached) = self.get_cached_embedding(&hash)? {
-                embeddings.push(cached);
-                continue;
-            }
-
-            // 生成新embedding
-            let embedding = self.embedder.generate_embedding(text).await?;
-
-            // 写入缓存
-            self.cache_embedding(&hash, &embedding)?;
-
-            embeddings.push(embedding);
-        }
-
-        Ok(embeddings)
-    }
-
-    /// 从缓存读取embedding
-    fn get_cached_embedding(&self, hash: &str) -> Result<Option<Vec<f32>>> {
-        self.db.with_connection(|conn| {
-            let result: Option<Vec<u8>> = conn
-                .prepare(
-                    "SELECT embedding FROM embedding_cache
-                     WHERE provider = 'openai'
-                       AND model = ?1
-                       AND hash = ?2"
-                )?
-                .query_row([&self.config.embedding_model, hash], |row| row.get(0))
-                .ok();
-
-            match result {
-                Some(blob) => {
-                    let embedding: Vec<f32> = deserialize_embedding(&blob)?;
-                    Ok(Some(embedding))
-                }
-                None => Ok(None),
-            }
-        })
-    }
-
-    /// 缓存embedding
-    fn cache_embedding(&self, hash: &str, embedding: &[f32]) -> Result<()> {
-        let blob = serialize_embedding(embedding);
-        let dims = embedding.len() as i32;
-        let now = Utc::now().timestamp();
-
-        self.db.with_connection(|conn| {
-            conn.execute(
-                "INSERT OR REPLACE INTO embedding_cache
-                 (provider, model, hash, embedding, dims, updated_at)
-                 VALUES ('openai', ?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![
-                    &self.config.embedding_model,
-                    hash,
-                    blob,
-                    dims,
-                    now,
-                ],
-            )?;
-            Ok(())
-        })
-    }
-
     /// 保存文件元数据
     fn save_file_metadata(&self, metadata: &FileMetadata) -> Result<()> {
         self.db.with_connection(|conn| {
@@ -307,37 +227,31 @@ impl IndexManager {
         })
     }
 
-    /// 保存chunks
+    /// 保存chunks（不含 embedding）
     fn save_chunks(
         &self,
         file_path: &str,
         chunks: &[TextChunk],
-        embeddings: &[Vec<f32>],
     ) -> Result<()> {
-        if chunks.len() != embeddings.len() {
-            anyhow::bail!("Chunks and embeddings length mismatch");
-        }
-
         let now = Utc::now().timestamp();
+        let empty_blob: Vec<u8> = Vec::new();
 
         self.db.with_connection(|conn| {
-            for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
+            for chunk in chunks {
                 let id = Uuid::new_v4().to_string();
-                let embedding_blob = serialize_embedding(embedding);
 
                 conn.execute(
                     "INSERT INTO memory_chunks
                      (id, file_path, source, start_line, end_line, hash, model, text, embedding, updated_at)
-                     VALUES (?1, ?2, 'activity', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                     VALUES (?1, ?2, 'activity', ?3, ?4, ?5, '', ?6, ?7, ?8)",
                     rusqlite::params![
                         id,
                         file_path,
                         chunk.start_line,
                         chunk.end_line,
                         &chunk.hash,
-                        &self.config.embedding_model,
                         &chunk.text,
-                        embedding_blob,
+                        &empty_blob,
                         now,
                     ],
                 )?;

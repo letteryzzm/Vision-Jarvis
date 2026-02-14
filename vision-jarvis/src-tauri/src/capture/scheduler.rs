@@ -1,8 +1,9 @@
 /// 截图捕获调度器
 ///
-/// 负责按配置间隔定时捕获截图
+/// 负责按配置间隔定时捕获截图，自动保存文件和数据库记录
 
-use anyhow::Result;
+use crate::error::{AppError, AppResult};
+use crate::db::Database;
 use log::error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -13,7 +14,8 @@ use super::ScreenCapture;
 /// 捕获调度器
 pub struct CaptureScheduler {
     capture: Arc<ScreenCapture>,
-    interval_seconds: u8,
+    db: Option<Arc<Database>>,
+    pub interval_seconds: u8,
     is_running: Arc<Mutex<bool>>,
     task_handle: Option<JoinHandle<()>>,
 }
@@ -23,23 +25,36 @@ impl CaptureScheduler {
     pub fn new(capture: ScreenCapture, interval_seconds: u8) -> Self {
         Self {
             capture: Arc::new(capture),
+            db: None,
             interval_seconds,
             is_running: Arc::new(Mutex::new(false)),
             task_handle: None,
         }
     }
 
+    /// 设置数据库（截图记录会自动写入）
+    pub fn with_db(mut self, db: Arc<Database>) -> Self {
+        self.db = Some(db);
+        self
+    }
+
+    /// 注入数据库引用
+    pub fn set_db(&mut self, db: Arc<Database>) {
+        self.db = Some(db);
+    }
+
     /// 启动调度器
-    pub async fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if *running {
-            anyhow::bail!("调度器已经在运行");
+            return Err(AppError::screenshot(10, "调度器已经在运行"));
         }
 
         *running = true;
         drop(running); // 释放锁
 
         let capture = Arc::clone(&self.capture);
+        let db = self.db.clone();
         let is_running = Arc::clone(&self.is_running);
         let interval_secs = self.interval_seconds as u64;
 
@@ -57,8 +72,34 @@ impl CaptureScheduler {
                 drop(running);
 
                 // 捕获截图
-                if let Err(e) = capture.capture_screenshot() {
-                    error!("Screenshot capture failed: {}", e);
+                match capture.capture_screenshot() {
+                    Ok(file_path) => {
+                        eprintln!("[Scheduler] Screenshot captured: {}", file_path.display());
+                        // 保存到数据库
+                        if let Some(ref db) = db {
+                            let id = uuid::Uuid::new_v4().to_string();
+                            let path_str = file_path.to_string_lossy().to_string();
+                            let timestamp = chrono::Utc::now().timestamp();
+
+                            if let Err(e) = db.with_connection(|conn| {
+                                conn.execute(
+                                    "INSERT INTO screenshots (id, path, captured_at, analyzed)
+                                     VALUES (?1, ?2, ?3, 0)",
+                                    (&id, &path_str, timestamp),
+                                )?;
+                                Ok(())
+                            }) {
+                                eprintln!("[Scheduler] ERROR: Failed to save screenshot record: {}", e);
+                            } else {
+                                eprintln!("[Scheduler] Screenshot saved to DB: {}", id);
+                            }
+                        } else {
+                            eprintln!("[Scheduler] WARNING: No database configured, screenshot not saved to DB");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[Scheduler] ERROR: Screenshot capture failed: {}", e);
+                    }
                 }
             }
         });
@@ -69,10 +110,10 @@ impl CaptureScheduler {
     }
 
     /// 停止调度器
-    pub async fn stop(&mut self) -> Result<()> {
+    pub async fn stop(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if !*running {
-            anyhow::bail!("调度器未运行");
+            return Err(AppError::screenshot(11, "调度器未运行"));
         }
 
         *running = false;
@@ -80,7 +121,8 @@ impl CaptureScheduler {
 
         // 等待任务完成
         if let Some(handle) = self.task_handle.take() {
-            handle.await?;
+            handle.await
+                .map_err(|e| AppError::screenshot(12, format!("等待任务完成失败: {}", e)))?;
         }
 
         Ok(())
@@ -92,7 +134,7 @@ impl CaptureScheduler {
     }
 
     /// 更新捕获间隔
-    pub async fn update_interval(&mut self, interval_seconds: u8) -> Result<()> {
+    pub async fn update_interval(&mut self, interval_seconds: u8) -> AppResult<()> {
         let was_running = self.is_running().await;
 
         if was_running {

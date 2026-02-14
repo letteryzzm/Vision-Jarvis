@@ -1,36 +1,23 @@
 /// 长期记忆生成器
 ///
-/// 对日期范围内的短期记忆进行AI总结
+/// 对日期范围内的短期记忆进行总结
+/// NOTE: AI 总结功能将在记忆系统重新设计时实现
 
-use anyhow::{Result, Context};
+use anyhow::Result;
 use crate::db::schema::{LongTermMemory, MainActivity};
 use crate::db::Database;
-use crate::ai::OpenAIClient;
-use crate::ai::{ChatCompletionRequest, ChatMessage, MessageContent};
 use chrono::NaiveDate;
 use uuid::Uuid;
 
 /// 长期记忆生成器
 pub struct LongTermMemoryGenerator {
     db: Database,
-    ai_client: Option<OpenAIClient>,
 }
 
 impl LongTermMemoryGenerator {
     /// 创建新的生成器
     pub fn new(db: Database) -> Self {
-        Self {
-            db,
-            ai_client: None,
-        }
-    }
-
-    /// 创建带 AI 客户端的生成器
-    pub fn with_ai(db: Database, ai_client: OpenAIClient) -> Self {
-        Self {
-            db,
-            ai_client: Some(ai_client),
-        }
+        Self { db }
     }
 
     /// 生成日期范围的长期记忆
@@ -49,8 +36,8 @@ impl LongTermMemoryGenerator {
         // 2. 提取主要活动
         let main_activities = self.extract_main_activities(&short_term_memories);
 
-        // 3. 生成AI总结
-        let summary = self.generate_ai_summary(&short_term_memories).await?;
+        // 3. 生成摘要（使用本地总结，AI 版本待记忆系统重新设计时实现）
+        let summary = generate_default_summary(&short_term_memories);
 
         // 4. 创建长期记忆
         let memory = LongTermMemory {
@@ -128,7 +115,7 @@ impl LongTermMemoryGenerator {
                 let hours = duration / 60;
                 let minutes = duration % 60;
                 MainActivity {
-                    date: String::new(), // 将在实际实现中填充
+                    date: String::new(),
                     activity,
                     duration: if hours > 0 {
                         format!("{}小时{}分钟", hours, minutes)
@@ -139,59 +126,12 @@ impl LongTermMemoryGenerator {
             })
             .collect()
     }
-
-    /// 生成AI总结
-    async fn generate_ai_summary(
-        &self,
-        memories: &[ShortTermMemorySummary],
-    ) -> Result<String> {
-        // 如果没有 AI 客户端，返回默认摘要
-        let Some(ref client) = self.ai_client else {
-            return Ok(generate_default_summary(memories));
-        };
-
-        // 构建提示词
-        let prompt = format!(
-            "请根据以下活动记录生成一段简洁的中文总结（150字以内）：\n\n{}",
-            memories
-                .iter()
-                .map(|m| format!("- {}: {}分钟", m.activity, m.duration_minutes))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
-
-        let request = ChatCompletionRequest {
-            model: "gpt-4o".to_string(),
-            messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: MessageContent::Text(prompt),
-            }],
-            temperature: Some(0.7),
-            max_tokens: Some(300),
-            response_format: None,
-        };
-
-        let response = client.chat_completion(request).await?;
-
-        let summary = response
-            .choices
-            .first()
-            .and_then(|choice| {
-                if let MessageContent::Text(text) = &choice.message.content {
-                    Some(text.clone())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| generate_default_summary(memories));
-
-        Ok(summary)
-    }
 }
 
 /// 短期记忆摘要
 #[derive(Debug, Clone)]
 struct ShortTermMemorySummary {
+    #[allow(dead_code)]
     date: String,
     activity: String,
     duration_minutes: i64,
@@ -219,7 +159,7 @@ fn calculate_duration(time_start: &str, time_end: &str) -> i64 {
     }
 }
 
-/// 生成默认摘要（当 AI 不可用时）
+/// 生成默认摘要（本地统计版）
 fn generate_default_summary(memories: &[ShortTermMemorySummary]) -> String {
     use std::collections::HashMap;
 
