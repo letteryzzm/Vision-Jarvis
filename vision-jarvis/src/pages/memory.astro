@@ -9,7 +9,7 @@ import Layout from '../layouts/Layout.astro';
       <!-- Memory Toggle -->
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium text-secondary">全局记忆</span>
-        <div class="memory-toggle w-[60px] h-8 gradient-success rounded-full flex items-center justify-end px-1 cursor-pointer">
+        <div id="memory-toggle" class="w-[60px] h-8 bg-secondary rounded-full flex items-center px-1 cursor-pointer transition-all duration-300">
           <div class="w-6 h-6 bg-white rounded-full transition-all duration-300"></div>
         </div>
       </div>
@@ -57,9 +57,10 @@ import Layout from '../layouts/Layout.astro';
         <div>
           <div class="flex justify-between text-xs mb-2">
             <span class="text-secondary">截屏频率</span>
-            <span class="text-info">5秒</span>
+            <span class="text-info" id="interval-display">5秒</span>
           </div>
           <input
+            id="interval-slider"
             type="range"
             min="1"
             max="15"
@@ -69,7 +70,7 @@ import Layout from '../layouts/Layout.astro';
         </div>
 
         <!-- Storage Settings -->
-        <button class="w-full h-10 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary">
+        <button id="storage-btn" class="w-full h-10 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary">
           文件存储设置
         </button>
       </div>
@@ -135,4 +136,155 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </div>
   </div>
+
+  <script>
+    import { $settings, loadSettings, toggleMemory, updateCaptureInterval } from '../stores/settingsStore'
+
+    // ========================================================================
+    // 初始化
+    // ========================================================================
+
+    let isInitialized = false
+
+    async function init() {
+      if (isInitialized) return
+      isInitialized = true
+
+      try {
+        // 加载设置
+        await loadSettings()
+
+        // 订阅设置变化
+        $settings.subscribe((settings) => {
+          if (!settings) return
+
+          // 更新记忆开关 UI
+          updateMemoryToggleUI(settings.memory_enabled)
+
+          // 更新截图间隔 UI
+          updateIntervalUI(settings.capture_interval_seconds)
+        })
+      } catch (error) {
+        console.error('Failed to initialize memory page:', error)
+        showNotification('加载设置失败: ' + error, 'error')
+      }
+    }
+
+    // ========================================================================
+    // 记忆开关
+    // ========================================================================
+
+    const memoryToggle = document.getElementById('memory-toggle')
+    let isMemoryEnabled = false
+
+    function updateMemoryToggleUI(enabled: boolean) {
+      isMemoryEnabled = enabled
+      const toggle = memoryToggle as HTMLElement
+      const ball = toggle.querySelector('div') as HTMLElement
+
+      if (enabled) {
+        toggle.classList.remove('bg-secondary')
+        toggle.classList.add('gradient-success', 'justify-end')
+        ball.style.transform = 'translateX(0)'
+      } else {
+        toggle.classList.remove('gradient-success', 'justify-end')
+        toggle.classList.add('bg-secondary')
+        ball.style.transform = 'translateX(0)'
+      }
+    }
+
+    memoryToggle?.addEventListener('click', async () => {
+      const newState = !isMemoryEnabled
+
+      try {
+        // 乐观更新 UI
+        updateMemoryToggleUI(newState)
+
+        // 调用后端
+        await toggleMemory(newState)
+
+        showNotification(
+          newState ? '记忆功能已启用' : '记忆功能已禁用',
+          'success'
+        )
+      } catch (error) {
+        // 回滚 UI
+        updateMemoryToggleUI(isMemoryEnabled)
+        console.error('Failed to toggle memory:', error)
+        showNotification('切换失败: ' + error, 'error')
+      }
+    })
+
+    // ========================================================================
+    // 截图间隔滑块
+    // ========================================================================
+
+    const intervalSlider = document.getElementById('interval-slider') as HTMLInputElement
+    const intervalDisplay = document.getElementById('interval-display') as HTMLElement
+    let currentInterval = 5
+    let updateTimer: number | null = null
+
+    function updateIntervalUI(seconds: number) {
+      currentInterval = seconds
+      if (intervalSlider) {
+        intervalSlider.value = String(seconds)
+      }
+      if (intervalDisplay) {
+        intervalDisplay.textContent = `${seconds}秒`
+      }
+    }
+
+    intervalSlider?.addEventListener('input', (e) => {
+      const value = parseInt((e.target as HTMLInputElement).value)
+
+      // 立即更新显示
+      if (intervalDisplay) {
+        intervalDisplay.textContent = `${value}秒`
+      }
+
+      // 防抖：延迟 500ms 后再调用后端
+      if (updateTimer !== null) {
+        clearTimeout(updateTimer)
+      }
+
+      updateTimer = window.setTimeout(async () => {
+        try {
+          await updateCaptureInterval(value)
+          showNotification(`截图间隔已更新为 ${value} 秒`, 'success')
+        } catch (error) {
+          // 回滚 UI
+          updateIntervalUI(currentInterval)
+          console.error('Failed to update interval:', error)
+          showNotification('更新失败: ' + error, 'error')
+        }
+      }, 500)
+    })
+
+    // ========================================================================
+    // 通知
+    // ========================================================================
+
+    function showNotification(message: string, type: 'success' | 'error' | 'info') {
+      const notification = document.createElement('div')
+      notification.className = `fixed bottom-4 right-4 px-6 py-3 rounded-[12px] text-white font-medium z-50 transition-all
+        ${type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`
+      notification.textContent = message
+      document.body.appendChild(notification)
+
+      setTimeout(() => {
+        notification.remove()
+      }, 3000)
+    }
+
+    // ========================================================================
+    // 启动
+    // ========================================================================
+
+    // 页面加载时初始化
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init)
+    } else {
+      init()
+    }
+  </script>
 </Layout>
