@@ -91,6 +91,13 @@ Agent (planner):
 **WAITING FOR CONFIRMATION**: Proceed with this plan? (yes/no/modify)
 ```
 
+## Plan File Output
+
+**CRITICAL**: After generating the plan, MUST save it as a markdown file to `docs/planning/` directory:
+- File name format: `YYYY-MM-DD-<feature-name>.md` (e.g. `2026-02-13-notification-system.md`)
+- Create the `docs/planning/` directory if it doesn't exist
+- The file should contain the complete plan content
+
 ## Important Notes
 
 **CRITICAL**: The planner agent will **NOT** write any code until you explicitly confirm the plan with "yes" or "proceed" or similar affirmative response.
