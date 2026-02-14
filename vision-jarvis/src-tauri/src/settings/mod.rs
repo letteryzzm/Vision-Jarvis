@@ -2,7 +2,7 @@
 ///
 /// 使用 tauri-plugin-store 进行持久化存储
 
-use anyhow::{Result, Context};
+use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -35,7 +35,7 @@ impl SettingsManager {
     }
 
     /// 更新设置
-    pub fn update(&self, new_settings: AppSettings) -> Result<()> {
+    pub fn update(&self, new_settings: AppSettings) -> AppResult<()> {
         self.validate_settings(&new_settings)?;
         let mut settings = self.settings.lock().unwrap();
         *settings = new_settings;
@@ -43,52 +43,60 @@ impl SettingsManager {
     }
 
     /// 验证设置
-    fn validate_settings(&self, settings: &AppSettings) -> Result<()> {
+    fn validate_settings(&self, settings: &AppSettings) -> AppResult<()> {
         // 验证截图间隔
         if settings.capture_interval_seconds < 1 || settings.capture_interval_seconds > 15 {
-            anyhow::bail!("截图间隔必须在 1-15 秒之间");
+            return Err(AppError::validation(1, "截图间隔必须在 1-15 秒之间"));
         }
 
         // 验证存储限制
         if settings.storage_limit_mb == 0 {
-            anyhow::bail!("存储限制必须大于 0");
+            return Err(AppError::validation(2, "存储限制必须大于 0"));
         }
 
-        // 验证时间格式
-        self.validate_time_format(&settings.timed_reminder_start)?;
-        self.validate_time_format(&settings.timed_reminder_end)?;
+        // 早安提醒
+        self.validate_time_format(&settings.morning_reminder_time)?;
 
-        // 验证提醒间隔
-        if settings.timed_reminder_enabled && settings.timed_reminder_interval_minutes == 0 {
-            anyhow::bail!("提醒间隔必须大于 0");
+        // 喝水提醒
+        self.validate_time_format(&settings.water_reminder_start)?;
+        self.validate_time_format(&settings.water_reminder_end)?;
+        if settings.water_reminder_enabled && settings.water_reminder_interval_minutes == 0 {
+            return Err(AppError::validation(3, "喝水提醒间隔必须大于 0"));
         }
 
-        // 验证不活动阈值
-        if settings.inactivity_reminder_enabled && settings.inactivity_threshold_minutes == 0 {
-            anyhow::bail!("不活动阈值必须大于 0");
+        // 久坐提醒
+        self.validate_time_format(&settings.sedentary_reminder_start)?;
+        self.validate_time_format(&settings.sedentary_reminder_end)?;
+        if settings.sedentary_reminder_enabled && settings.sedentary_reminder_threshold_minutes == 0 {
+            return Err(AppError::validation(4, "久坐提醒阈值必须大于 0"));
+        }
+
+        // 屏幕无变化提醒
+        if settings.screen_inactivity_reminder_enabled && settings.screen_inactivity_minutes == 0 {
+            return Err(AppError::validation(5, "屏幕无变化检测阈值必须大于 0"));
         }
 
         Ok(())
     }
 
     /// 验证时间格式 (HH:MM)
-    fn validate_time_format(&self, time: &str) -> Result<()> {
+    fn validate_time_format(&self, time: &str) -> AppResult<()> {
         let parts: Vec<&str> = time.split(':').collect();
         if parts.len() != 2 {
-            anyhow::bail!("时间格式必须是 HH:MM");
+            return Err(AppError::validation(5, "时间格式必须是 HH:MM"));
         }
 
         let hour: u8 = parts[0].parse()
-            .context("小时必须是有效的数字")?;
+            .map_err(|_| AppError::validation(6, "小时必须是有效的数字"))?;
         let minute: u8 = parts[1].parse()
-            .context("分钟必须是有效的数字")?;
+            .map_err(|_| AppError::validation(7, "分钟必须是有效的数字"))?;
 
         if hour > 23 {
-            anyhow::bail!("小时必须在 0-23 之间");
+            return Err(AppError::validation(8, "小时必须在 0-23 之间"));
         }
 
         if minute > 59 {
-            anyhow::bail!("分钟必须在 0-59 之间");
+            return Err(AppError::validation(9, "分钟必须在 0-59 之间"));
         }
 
         Ok(())
@@ -138,16 +146,43 @@ mod tests {
         let manager = SettingsManager::new();
         let mut settings = AppSettings::default();
 
-        // 无效：太小
         settings.capture_interval_seconds = 0;
         assert!(manager.validate_settings(&settings).is_err());
 
-        // 无效：太大
         settings.capture_interval_seconds = 16;
         assert!(manager.validate_settings(&settings).is_err());
 
-        // 有效
         settings.capture_interval_seconds = 5;
+        assert!(manager.validate_settings(&settings).is_ok());
+    }
+
+    #[test]
+    fn test_validate_reminder_settings() {
+        let manager = SettingsManager::new();
+        let mut settings = AppSettings::default();
+
+        // 喝水提醒启用但间隔为 0
+        settings.water_reminder_enabled = true;
+        settings.water_reminder_interval_minutes = 0;
+        assert!(manager.validate_settings(&settings).is_err());
+
+        settings.water_reminder_interval_minutes = 30;
+        assert!(manager.validate_settings(&settings).is_ok());
+
+        // 久坐提醒启用但阈值为 0
+        settings.sedentary_reminder_enabled = true;
+        settings.sedentary_reminder_threshold_minutes = 0;
+        assert!(manager.validate_settings(&settings).is_err());
+
+        settings.sedentary_reminder_threshold_minutes = 60;
+        assert!(manager.validate_settings(&settings).is_ok());
+
+        // 屏幕无变化提醒启用但阈值为 0
+        settings.screen_inactivity_reminder_enabled = true;
+        settings.screen_inactivity_minutes = 0;
+        assert!(manager.validate_settings(&settings).is_err());
+
+        settings.screen_inactivity_minutes = 10;
         assert!(manager.validate_settings(&settings).is_ok());
     }
 
