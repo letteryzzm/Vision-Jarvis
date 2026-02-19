@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-/* Vision Jarvis Custom Styles */
-
 @layer base {
   * {
     @apply box-border;
@@ -100,10 +98,5 @@
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #00D4FF;
-  }
-
-  /* Performance Optimizations */
-  .transition-all {
-    will-change: transform, opacity;
   }
 }

@@ -15,12 +15,14 @@ Vision-Jarvis 是一个智能AI助手，能够：
 ## 技术架构
 
 ### 桌面应用 (vision-jarvis/)
+
 - **前端**：Astro v5.16.16 (静态站点生成)
 - **后端**：Tauri v2 (Rust)
 - **WebView**：wry (跨平台 WebView)
 - **窗口管理**：tao
 
 ### 核心功能 (未来)
+
 - **AI引擎**：Claude API (Anthropic)
 - **屏幕捕获**：PyObjC (Quartz) / Tauri APIs
 - **配置管理**：Pydantic + YAML
@@ -53,6 +55,7 @@ source $HOME/.cargo/env
 ### 3. 开发模式运行
 
 ```bash
+cd vision-jarvis
 # 启动 Tauri 开发环境（包含热重载）
 npm run tauri:dev
 
@@ -104,6 +107,7 @@ Vision-Jarvis/
 **当前阶段**: 项目初始化完成 ✅
 
 ### 已完成
+
 - ✅ Tauri v2 + Astro v5 集成
 - ✅ 开发环境配置
 - ✅ 前后端通信架构
@@ -112,11 +116,13 @@ Vision-Jarvis/
 - ✅ 集成测试验证（详见 [测试报告](docs/testing/test-reports/2026-01-29-tauri-integration-test.md)）
 
 ### 进行中
+
 - 🚧 屏幕捕获 API（Tauri plugin）
 - 🚧 Claude API 集成
 - 🚧 记忆系统设计
 
 ### 计划中
+
 - 📋 智能触发器系统
 - 📋 GUI 界面优化
 - 📋 系统托盘和全局快捷键
@@ -221,10 +227,10 @@ Apache License 2.0
 
 ### Phase 1: 基础设施 ✅ (已完成)
 
-- [x] Tauri + Astro 技术栈搭建
-- [x] 开发环境配置
-- [x] 文档管理系统
-- [x] 集成测试验证
+- [X] Tauri + Astro 技术栈搭建
+- [X] 开发环境配置
+- [X] 文档管理系统
+- [X] 集成测试验证
 
 ### Phase 2: 核心功能 🚧 (进行中)
 
