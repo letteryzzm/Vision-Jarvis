@@ -35,6 +35,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
   <script>
     import { invoke } from '@tauri-apps/api/core';
+    import { $settings, loadSettings, toggleMemory } from '../stores/settingsStore';
 
     type WindowState = 'ball' | 'header' | 'asker';
     let currentState: WindowState = 'ball';
@@ -292,6 +293,54 @@ import Asker from '../components/FloatingBall/Asker.astro';
         // 关闭 Asker
         document.getElementById('close-asker')?.addEventListener('click', () => {
           switchTo('ball');
+        });
+
+        // ========================================
+        // Memory Toggle (Header)
+        // ========================================
+
+        const memoryToggle = document.querySelector('.memory-toggle') as HTMLElement | null;
+        let isMemoryEnabled = true;
+
+        function updateHeaderToggleUI(enabled: boolean) {
+          isMemoryEnabled = enabled;
+          if (!memoryToggle) return;
+          const ball = memoryToggle.querySelector('div') as HTMLElement;
+
+          if (enabled) {
+            memoryToggle.classList.remove('bg-secondary');
+            memoryToggle.classList.add('gradient-success', 'justify-end');
+          } else {
+            memoryToggle.classList.remove('gradient-success', 'justify-end');
+            memoryToggle.classList.add('bg-secondary');
+          }
+        }
+
+        memoryToggle?.addEventListener('click', async () => {
+          const oldState = isMemoryEnabled;
+          const newState = !oldState;
+          try {
+            updateHeaderToggleUI(newState);
+            await toggleMemory(newState);
+          } catch (error) {
+            updateHeaderToggleUI(oldState);
+            console.error('Failed to toggle memory:', error);
+          }
+        });
+
+        // 加载设置并同步 toggle 初始状态
+        loadSettings().then(() => {
+          const settings = $settings.get();
+          if (settings) {
+            updateHeaderToggleUI(settings.memory_enabled);
+          }
+        });
+
+        // 订阅 settings 变化，保持 Header toggle 与 memory 页面同步
+        $settings.subscribe((settings) => {
+          if (settings) {
+            updateHeaderToggleUI(settings.memory_enabled);
+          }
         });
 
         console.log('[Floating Ball] All event listeners registered');

@@ -42,6 +42,12 @@ impl AIConfigState {
         *config = new_config;
         Ok(())
     }
+
+    /// 获取活跃提供商的配置（用于创建AIClient）
+    pub fn get_active_provider_config(&self) -> Option<crate::ai::AIProviderConfig> {
+        let config = self.config.lock().unwrap();
+        config.get_active_provider().cloned()
+    }
 }
 
 impl Default for AIConfigState {
@@ -121,20 +127,29 @@ pub async fn update_ai_provider_config(
     }
 }
 
-/// 设置活动的 AI 提供商
+/// 设置活动的 AI 提供商（自动连接到管道）
 #[tauri::command]
 pub async fn set_active_ai_provider(
     state: State<'_, AIConfigState>,
+    app_state: State<'_, super::AppState>,
     provider_id: String,
 ) -> Result<ApiResponse<bool>, String> {
     let mut config = state.get();
 
     match config.set_active_provider(&provider_id) {
         Ok(_) => match state.update(config) {
-            Ok(_) => Ok(ApiResponse::success(true)),
+            Ok(_) => {
+                // 自动连接到管道
+                if let Some(provider) = state.get_active_provider_config() {
+                    if let Ok(client) = AIClient::new(provider) {
+                        app_state.pipeline.connect_ai(client).await;
+                    }
+                }
+                Ok(ApiResponse::success(true))
+            },
             Err(e) => Ok(ApiResponse::error(format!("保存配置失败: {}", e))),
         },
-        Err(e) => Ok(ApiResponse::error(format!("设置提供商失败: {}", e))),
+        Err(e) => Ok(ApiResponse::error(format!("设��提供商失败: {}", e))),
     }
 }
 
@@ -198,6 +213,50 @@ pub async fn reset_ai_config(
         Ok(_) => Ok(ApiResponse::success(true)),
         Err(e) => Ok(ApiResponse::error(format!("重置配置失败: {}", e))),
     }
+}
+
+/// 连接AI到记忆管道（启用截图分析）
+#[tauri::command]
+pub async fn connect_ai_to_pipeline(
+    ai_state: State<'_, AIConfigState>,
+    app_state: State<'_, super::AppState>,
+) -> Result<ApiResponse<String>, String> {
+    let provider = match ai_state.get_active_provider_config() {
+        Some(p) => p,
+        None => return Ok(ApiResponse::error("没有活跃的AI提供商，请先配置AI".to_string())),
+    };
+
+    let client = match AIClient::new(provider.clone()) {
+        Ok(c) => c,
+        Err(e) => return Ok(ApiResponse::error(format!("创建AI客户端失败: {}", e))),
+    };
+
+    app_state.pipeline.connect_ai(client).await;
+
+    Ok(ApiResponse::success(format!(
+        "AI已连接到管道 - 提供商: {}, 模型: {}",
+        provider.name, provider.model
+    )))
+}
+
+/// 获取管道状态
+#[tauri::command]
+pub async fn get_pipeline_status(
+    app_state: State<'_, super::AppState>,
+) -> Result<ApiResponse<PipelineStatus>, String> {
+    let ai_connected = app_state.pipeline.is_ai_connected().await;
+
+    Ok(ApiResponse::success(PipelineStatus {
+        running: true,
+        ai_connected,
+    }))
+}
+
+/// 管道状态信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineStatus {
+    pub running: bool,
+    pub ai_connected: bool,
 }
 
 #[cfg(test)]

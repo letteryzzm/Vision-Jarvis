@@ -113,6 +113,16 @@ pub fn run() {
                 eprintln!("[Vision-Jarvis] Notification scheduler started!");
             });
 
+            // 启动记忆管道调度器
+            if memory_enabled {
+                let pipeline = state.pipeline.clone();
+                tauri::async_runtime::spawn(async move {
+                    eprintln!("[Vision-Jarvis] Starting memory pipeline...");
+                    pipeline.start();
+                    eprintln!("[Vision-Jarvis] Memory pipeline started (AI not connected yet, configure AI provider to enable screenshot analysis)");
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -131,6 +141,8 @@ pub fn run() {
             commands::notification::get_pending_notifications,
             commands::notification::dismiss_notification,
             commands::notification::get_notification_history,
+            commands::notification::respond_to_suggestion,
+            commands::notification::get_suggestion_history,
             // 设置相关
             commands::settings::get_settings,
             commands::settings::update_settings,
@@ -151,6 +163,8 @@ pub fn run() {
             commands::ai_config::get_available_ai_providers,
             commands::ai_config::delete_ai_provider,
             commands::ai_config::reset_ai_config,
+            commands::ai_config::connect_ai_to_pipeline,
+            commands::ai_config::get_pipeline_status,
             // 窗口管理相关
             commands::window::open_memory_window,
             commands::window::open_popup_setting_window,

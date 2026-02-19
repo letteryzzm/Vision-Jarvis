@@ -243,3 +243,179 @@ pub struct EmbeddingCacheEntry {
     pub dims: i32,                           // 向量维度
     pub created_at: i64,                     // 缓存时间
 }
+
+// ============================================================================
+// V3 Schema: Proactive AI Memory System
+// ============================================================================
+
+/// 截图AI分析结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreenshotAnalysis {
+    pub screenshot_id: String,
+    pub application: String,
+    pub activity_type: String,              // work, entertainment, communication, other
+    pub activity_description: String,        // 一句话描述
+    pub key_elements: Vec<String>,          // 关键元素列表
+    pub ocr_text: Option<String>,           // OCR提取的文本
+    pub context_tags: Vec<String>,          // 上下文标签
+    pub productivity_score: i32,            // 1-10
+    pub analysis_json: String,              // 完整JSON
+    pub analyzed_at: i64,
+}
+
+/// 项目
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Project {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub start_date: i64,
+    pub last_activity_date: i64,
+    pub activity_count: i32,
+    pub tags: Vec<String>,
+    pub status: ProjectStatus,
+    pub markdown_path: String,
+    pub created_at: i64,
+}
+
+/// 项目状态
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProjectStatus {
+    Active,
+    Paused,
+    Completed,
+}
+
+impl ProjectStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ProjectStatus::Active => "active",
+            ProjectStatus::Paused => "paused",
+            ProjectStatus::Completed => "completed",
+        }
+    }
+}
+
+/// 习惯模式
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Habit {
+    pub id: String,
+    pub pattern_name: String,
+    pub pattern_type: HabitPatternType,
+    pub confidence: f32,                    // 0.0-1.0
+    pub frequency: String,                  // daily, weekly, etc.
+    pub trigger_conditions: Option<String>, // JSON
+    pub typical_time: Option<String>,       // HH:MM
+    pub last_occurrence: Option<i64>,
+    pub occurrence_count: i32,
+    pub markdown_path: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// 习惯模式类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum HabitPatternType {
+    TimeBased,      // 时间模式
+    TriggerBased,   // 触发模式
+    SequenceBased,  // 序列模式
+}
+
+impl HabitPatternType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            HabitPatternType::TimeBased => "time-based",
+            HabitPatternType::TriggerBased => "trigger-based",
+            HabitPatternType::SequenceBased => "sequence-based",
+        }
+    }
+}
+
+/// 总结
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Summary {
+    pub id: String,
+    pub summary_type: SummaryType,
+    pub date_start: String,                 // YYYY-MM-DD
+    pub date_end: String,                   // YYYY-MM-DD
+    pub content: String,
+    pub activity_ids: Vec<String>,
+    pub project_ids: Option<Vec<String>>,
+    pub markdown_path: String,
+    pub created_at: i64,
+}
+
+/// 总结类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SummaryType {
+    Daily,
+    Weekly,
+    Monthly,
+}
+
+impl SummaryType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            SummaryType::Daily => "daily",
+            SummaryType::Weekly => "weekly",
+            SummaryType::Monthly => "monthly",
+        }
+    }
+}
+
+/// 主动建议
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProactiveSuggestion {
+    pub id: String,
+    pub suggestion_type: SuggestionType,
+    pub trigger_context: String,            // JSON
+    pub message: String,
+    pub priority: i32,                      // 0-10
+    pub delivered: bool,
+    pub delivered_at: Option<i64>,
+    pub user_action: Option<UserAction>,
+    pub created_at: i64,
+}
+
+/// 建议类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SuggestionType {
+    HabitReminder,
+    ContextSwitch,
+    BreakReminder,
+    ProjectProgress,
+}
+
+impl SuggestionType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            SuggestionType::HabitReminder => "habit-reminder",
+            SuggestionType::ContextSwitch => "context-switch",
+            SuggestionType::BreakReminder => "break-reminder",
+            SuggestionType::ProjectProgress => "project-progress",
+        }
+    }
+}
+
+/// 用户对建议的操作
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum UserAction {
+    Dismissed,
+    Accepted,
+    Snoozed,
+}
+
+impl UserAction {
+    pub fn as_str(&self) -> &str {
+        match self {
+            UserAction::Dismissed => "dismissed",
+            UserAction::Accepted => "accepted",
+            UserAction::Snoozed => "snoozed",
+        }
+    }
+}
