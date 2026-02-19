@@ -83,11 +83,13 @@
     // 添加用户消息
     const userMsg = document.createElement('div');
     userMsg.className = 'flex justify-end';
-    userMsg.innerHTML = `
-      <div class="gradient-primary rounded-[18px] px-3 py-3 max-w-[80%]">
-        <p class="text-white text-sm">${message}</p>
-      </div>
-    `;
+    const userBubble = document.createElement('div');
+    userBubble.className = 'gradient-primary rounded-[18px] px-3 py-3 max-w-[80%]';
+    const userText = document.createElement('p');
+    userText.className = 'text-white text-sm';
+    userText.textContent = message;
+    userBubble.appendChild(userText);
+    userMsg.appendChild(userBubble);
     chatMessages?.appendChild(userMsg);
 
     // 清空输入框

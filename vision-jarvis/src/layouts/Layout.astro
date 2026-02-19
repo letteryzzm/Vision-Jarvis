@@ -1,16 +1,17 @@
 ---
 import '../styles/global.css';
+const { title = 'Vision-Jarvis' } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Vision-Jarvis</title>
+		<title>{title}</title>
 	</head>
 	<body>
 		<slot />

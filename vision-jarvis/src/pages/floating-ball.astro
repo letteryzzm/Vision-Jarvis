@@ -1,18 +1,11 @@
 ---
-import '../styles/global.css';
+import TransparentLayout from '../layouts/TransparentLayout.astro';
 import Ball from '../components/FloatingBall/Ball.astro';
 import Header from '../components/FloatingBall/Header.astro';
 import Asker from '../components/FloatingBall/Asker.astro';
 ---
 
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vision Jarvis</title>
-</head>
-<body style="margin: 0; padding: 0; background: transparent; overflow: hidden;">
+<TransparentLayout>
   <!-- 垂直布局: Ball 在上，Expansion 在下 -->
 
   <!-- Ball Zone - 始终可见，Ball 靠右对齐 -->
@@ -36,19 +29,13 @@ import Asker from '../components/FloatingBall/Asker.astro';
   <script>
     import { invoke } from '@tauri-apps/api/core';
     import { $settings, loadSettings, toggleMemory } from '../stores/settingsStore';
+    import { WINDOW_SIZES, DELAYS } from '../lib/constants';
 
     type WindowState = 'ball' | 'header' | 'asker';
     let currentState: WindowState = 'ball';
     let isTransitioning: boolean = false;
     let hoverTimer: number | null = null;
-    let isInitialized: boolean = false; // 防止初始化时触发 hover
-
-    // 窗口尺寸配置（新布局）
-    const WINDOW_SIZES = {
-      ball: { width: 64, height: 64 },           // 仅 Ball
-      header: { width: 360, height: 146 },       // Ball(64) + gap(10) + Header(72)
-      asker: { width: 360, height: 554 }         // Ball(64) + gap(10) + Asker(480)
-    };
+    let isInitialized: boolean = false;
 
     // 获取展开区域元素
     function getExpansionZone(): HTMLElement | null {
@@ -100,7 +87,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
         if (previousState !== 'ball') {
           const currentExp = previousState === 'header' ? headerExp : askerExp;
           currentExp?.classList.add('transitioning-out');
-          await delay(150);
+          await delay(DELAYS.transition);
         }
 
         // 2. 调整窗口大小
@@ -126,7 +113,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
             headerExp?.classList.add('hidden');
           }
 
-          await delay(150);
+          await delay(DELAYS.transition);
 
           // 移除动画类
           headerExp?.classList.remove('transitioning-in', 'transitioning-out');
@@ -155,38 +142,18 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
     // 页面加载时确保初始状态正确
     window.addEventListener('DOMContentLoaded', () => {
-      console.log('[Floating Ball] Page loaded, initializing...');
-      console.log('[Floating Ball] Current state:', currentState);
-      console.log('[Floating Ball] Expansion zone hidden:', getExpansionZone()?.classList.contains('hidden'));
-      console.log('[Floating Ball] Header expansion hidden:', getHeaderExpansion()?.classList.contains('hidden'));
-      console.log('[Floating Ball] Asker expansion hidden:', getAskerExpansion()?.classList.contains('hidden'));
-
       // 确保初始状态为 ball（所有展开区域都隐藏）
       const expansionZone = getExpansionZone();
       const headerExp = getHeaderExpansion();
       const askerExp = getAskerExpansion();
 
-      if (expansionZone && !expansionZone.classList.contains('hidden')) {
-        console.warn('[Floating Ball] Expansion zone is visible on load, hiding it');
-        expansionZone.classList.add('hidden');
-      }
-
-      if (headerExp && !headerExp.classList.contains('hidden')) {
-        console.warn('[Floating Ball] Header expansion is visible on load, hiding it');
-        headerExp.classList.add('hidden');
-      }
-
-      if (askerExp && !askerExp.classList.contains('hidden')) {
-        console.warn('[Floating Ball] Asker expansion is visible on load, hiding it');
-        askerExp.classList.add('hidden');
-      }
-
-      console.log('[Floating Ball] Initialization complete');
+      expansionZone?.classList.add('hidden');
+      headerExp?.classList.add('hidden');
+      askerExp?.classList.add('hidden');
 
       // 500ms 后启用 hover，避免初始化时误触发
       setTimeout(() => {
         isInitialized = true;
-        console.log('[Floating Ball] Hover events enabled');
 
         // ========================================
         // 注册所有事件监听器
@@ -195,18 +162,11 @@ import Asker from '../components/FloatingBall/Asker.astro';
         // Ball Zone 悬停 -> Header
         const ballZone = getBallZone();
         ballZone?.addEventListener('mouseenter', () => {
-          console.log('[Floating Ball] Ball Zone mouseenter - currentState:', currentState);
+          if (currentState !== 'ball') return;
 
-          if (currentState !== 'ball') {
-            console.log('[Floating Ball] Not expanding - already expanded');
-            return;
-          }
-
-          console.log('[Floating Ball] Starting hover timer (200ms)...');
           hoverTimer = window.setTimeout(() => {
-            console.log('[Floating Ball] Hover timer triggered, switching to header');
             switchTo('header');
-          }, 200);
+          }, DELAYS.hoverExpand);
         });
 
         ballZone?.addEventListener('mouseleave', () => {
@@ -215,11 +175,10 @@ import Asker from '../components/FloatingBall/Asker.astro';
             hoverTimer = null;
           }
 
-          // 鼠标离开 Ball Zone，300ms 后折叠（如果已展开）
           if (currentState !== 'ball') {
             hoverTimer = window.setTimeout(() => {
               switchTo('ball');
-            }, 300);
+            }, DELAYS.hoverCollapse);
           }
         });
 
@@ -237,10 +196,10 @@ import Asker from '../components/FloatingBall/Asker.astro';
         expansionZone?.addEventListener('mouseleave', () => {
           // 鼠标离开 Expansion Zone，300ms 后折叠
           hoverTimer = window.setTimeout(() => {
-            if (currentState === 'header') {
-              switchTo('ball');
-            }
-          }, 300);
+              if (currentState === 'header') {
+                switchTo('ball');
+              }
+            }, DELAYS.hoverCollapse);
         });
 
         // 点击 Ball -> Asker
@@ -343,8 +302,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
           }
         });
 
-        console.log('[Floating Ball] All event listeners registered');
-      }, 500);
+      }, DELAYS.initHover);
     });
   </script>
 
@@ -436,5 +394,4 @@ import Asker from '../components/FloatingBall/Asker.astro';
       background: rgba(255, 255, 255, 0.3);
     }
   </style>
-</body>
-</html>
+</TransparentLayout>
