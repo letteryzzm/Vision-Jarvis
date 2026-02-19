@@ -13,6 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use log::{info, warn};
+use rusqlite::OptionalExtension;
 use uuid::Uuid;
 
 use crate::ai::AIClient;
@@ -58,31 +59,13 @@ impl ProjectExtractor {
 
     /// 从活动中提取并匹配项目
     pub async fn extract_from_activity(&self, activity: &ActivitySession) -> Result<Option<String>> {
-        // 1. 提取项目名称候选
-        let project_name = if self.config.enable_ai {
-            if let Some(ref client) = self.ai_client {
-                match self.ai_extract_project(client, activity).await {
-                    Ok(Some(name)) => name,
-                    Ok(None) => return Ok(None),
-                    Err(e) => {
-                        warn!("AI项目提取失败: {}，使用规则提取", e);
-                        match self.rule_extract_project(activity) {
-                            Some(name) => name,
-                            None => return Ok(None),
-                        }
-                    }
-                }
-            } else {
-                match self.rule_extract_project(activity) {
-                    Some(name) => name,
-                    None => return Ok(None),
-                }
-            }
+        // 1. 优先从 screenshot_analyses.project_name 读取（V5: AI一次性提取）
+        let project_name = if let Some(name) = self.get_project_name_from_analyses(&activity.screenshot_ids)? {
+            name
+        } else if let Some(name) = self.rule_extract_project(activity) {
+            name
         } else {
-            match self.rule_extract_project(activity) {
-                Some(name) => name,
-                None => return Ok(None),
-            }
+            return Ok(None);
         };
 
         // 2. 匹配现有项目
@@ -124,39 +107,37 @@ impl ProjectExtractor {
         Ok(result)
     }
 
-    /// AI提取项目名称
-    async fn ai_extract_project(
-        &self,
-        client: &AIClient,
-        activity: &ActivitySession,
-    ) -> Result<Option<String>> {
-        let prompt = format!(
-            r#"分析这个活动，判断它是否属于某个项目或持续性任务。
-
-活动信息：
-- 标题: {}
-- 应用: {}
-- 时长: {}分钟
-- 标签: {:?}
-
-规则：
-1. 如果这个活动是某个项目的一部分（如"编写vision-jarvis"、"阅读某本书"、"学习Rust"），返回项目名称
-2. 如果只是日常操作（如"浏览网页"、"查看邮件"），返回 NONE
-3. 项目名称要简洁（2-10个字），使用中文
-
-只返回项目名称或NONE，不要其他文字。"#,
-            activity.title, activity.application, activity.duration_minutes, activity.tags
-        );
-
-        let response = client.send_text(&prompt).await
-            .map_err(|e| anyhow::anyhow!("AI调用失败: {}", e))?;
-
-        let trimmed = response.trim();
-        if trimmed == "NONE" || trimmed.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(trimmed.to_string()))
+    /// V5: 从 screenshot_analyses 表读取 AI 已提取的 project_name
+    fn get_project_name_from_analyses(&self, recording_ids: &[String]) -> Result<Option<String>> {
+        if recording_ids.is_empty() {
+            return Ok(None);
         }
+
+        self.db.with_connection(|conn| {
+            let placeholders: Vec<String> = recording_ids.iter().enumerate()
+                .map(|(i, _)| format!("?{}", i + 1))
+                .collect();
+            let sql = format!(
+                "SELECT project_name, COUNT(*) as cnt \
+                 FROM screenshot_analyses \
+                 WHERE screenshot_id IN ({}) AND project_name IS NOT NULL \
+                 GROUP BY project_name \
+                 ORDER BY cnt DESC \
+                 LIMIT 1",
+                placeholders.join(", ")
+            );
+
+            let mut stmt = conn.prepare(&sql)?;
+            let params: Vec<&dyn rusqlite::types::ToSql> = recording_ids.iter()
+                .map(|id| id as &dyn rusqlite::types::ToSql)
+                .collect();
+
+            let result = stmt.query_row(params.as_slice(), |row| {
+                row.get::<_, String>(0)
+            }).optional()?;
+
+            Ok(result)
+        })
     }
 
     /// 基于规则提取项目名称

@@ -173,11 +173,26 @@ impl SummaryGenerator {
 
         let total_minutes: i64 = activities.iter().map(|a| a.duration_minutes).sum();
 
+        // V5: 从 screenshot_analyses 聚合 accomplishments
+        let all_recording_ids: Vec<String> = activities.iter()
+            .flat_map(|a| a.screenshot_ids.iter().cloned())
+            .collect();
+        let accomplishments = self.get_accomplishments_from_analyses(&all_recording_ids)?;
+        let accomplishments_section = if accomplishments.is_empty() {
+            String::new()
+        } else {
+            let items = accomplishments.iter()
+                .map(|a| format!("- {}", a))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("\n\n## AI已提取的成果要点\n{}", items)
+        };
+
         let prompt = format!(
             r#"基于今天的活动记录生成日总结。
 
 ## 今日活动（共{}个，总计{}分钟）
-{}
+{}{}
 
 请生成简洁的日总结，包含：
 1. 时间分配概览（各类活动占比）
@@ -186,7 +201,7 @@ impl SummaryGenerator {
 4. 明日建议
 
 要求简洁专业，数据驱动。直接输出总结内容，不要包含标题。"#,
-            activities.len(), total_minutes, activities_desc
+            activities.len(), total_minutes, activities_desc, accomplishments_section
         );
 
         let response = client.send_text(&prompt).await
@@ -432,6 +447,46 @@ impl SummaryGenerator {
                 ],
             )?;
             Ok(())
+        })
+    }
+
+    /// V5: 从 screenshot_analyses 聚合 accomplishments
+    fn get_accomplishments_from_analyses(&self, recording_ids: &[String]) -> Result<Vec<String>> {
+        if recording_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.db.with_connection(|conn| {
+            let placeholders: Vec<String> = recording_ids.iter().enumerate()
+                .map(|(i, _)| format!("?{}", i + 1))
+                .collect();
+            let sql = format!(
+                "SELECT accomplishments FROM screenshot_analyses \
+                 WHERE screenshot_id IN ({}) AND accomplishments IS NOT NULL AND accomplishments != '[]'",
+                placeholders.join(", ")
+            );
+
+            let mut stmt = conn.prepare(&sql)?;
+            let params: Vec<&dyn rusqlite::types::ToSql> = recording_ids.iter()
+                .map(|id| id as &dyn rusqlite::types::ToSql)
+                .collect();
+
+            let rows = stmt.query_map(params.as_slice(), |row| {
+                row.get::<_, String>(0)
+            })?.collect::<rusqlite::Result<Vec<_>>>()?;
+
+            let mut all: Vec<String> = Vec::new();
+            for json_str in &rows {
+                if let Ok(items) = serde_json::from_str::<Vec<String>>(json_str) {
+                    for item in items {
+                        if !all.contains(&item) {
+                            all.push(item);
+                        }
+                    }
+                }
+            }
+
+            Ok(all)
         })
     }
 
