@@ -86,7 +86,7 @@ pub struct MainActivity {
 #[serde(default)]
 pub struct AppSettings {
     pub memory_enabled: bool,
-    pub capture_interval_seconds: u8,
+    pub capture_interval_seconds: u16,
     pub storage_path: String,
     pub storage_limit_mb: u64,
     pub auto_start: bool,
@@ -116,7 +116,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             memory_enabled: true,
-            capture_interval_seconds: 5,
+            capture_interval_seconds: 60,
             storage_path: String::from("./screenshots"),
             storage_limit_mb: 1024,
             auto_start: false,
@@ -261,6 +261,11 @@ pub struct ScreenshotAnalysis {
     pub productivity_score: i32,            // 1-10
     pub analysis_json: String,              // 完整JSON
     pub analyzed_at: i64,
+    // V5: 一次性分析扩展字段
+    pub activity_category: String,          // work|entertainment|communication|other
+    pub activity_summary: String,           // 活动概述（供时间线展示）
+    pub project_name: Option<String>,       // AI提取的项目名
+    pub accomplishments: Vec<String>,       // 成果要点
 }
 
 /// 项目
@@ -399,6 +404,24 @@ impl SuggestionType {
             SuggestionType::ProjectProgress => "project-progress",
         }
     }
+}
+
+// ============================================================================
+// V4 Schema: Video Recording
+// ============================================================================
+
+/// 录制分段记录
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Recording {
+    pub id: String,
+    pub path: String,
+    pub start_time: i64,
+    pub end_time: Option<i64>,
+    pub duration_secs: Option<i64>,
+    pub fps: i32,
+    pub analyzed: bool,
+    pub activity_id: Option<String>,
+    pub created_at: i64,
 }
 
 /// 用户对建议的操作

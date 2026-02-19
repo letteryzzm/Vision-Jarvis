@@ -46,6 +46,22 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         tx.commit()?;
     }
 
+    // V4: 视频录制
+    if version < 4 {
+        let tx = conn.unchecked_transaction()?;
+        create_recordings_table(&tx)?;
+        set_schema_version(&tx, 4)?;
+        tx.commit()?;
+    }
+
+    // V5: 一次性分析扩展 + recordings.activity_id
+    if version < 5 {
+        let tx = conn.unchecked_transaction()?;
+        migrate_v5(&tx)?;
+        set_schema_version(&tx, 5)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -501,6 +517,86 @@ fn create_proactive_suggestions_table(conn: &Connection) -> Result<()> {
 }
 
 // ============================================================================
+// V4 Tables: Video Recording
+// ============================================================================
+
+/// 创建 recordings 表 - 视频录制分段
+fn create_recordings_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS recordings (
+            id TEXT PRIMARY KEY,
+            path TEXT NOT NULL,
+            start_time INTEGER NOT NULL,
+            end_time INTEGER,
+            duration_secs INTEGER,
+            fps INTEGER DEFAULT 2,
+            analyzed INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_recordings_start_time
+         ON recordings(start_time DESC)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_recordings_analyzed
+         ON recordings(analyzed)",
+        [],
+    )?;
+
+    Ok(())
+}
+
+// ============================================================================
+// V5: One-shot Analysis Extension + recordings.activity_id
+// ============================================================================
+
+/// V5 迁移：扩展 screenshot_analyses 表 + recordings 添加 activity_id
+fn migrate_v5(conn: &Connection) -> Result<()> {
+    // screenshot_analyses 新增 4 列
+    let sa_columns = [
+        ("activity_category", "TEXT DEFAULT 'other'"),
+        ("activity_summary", "TEXT DEFAULT ''"),
+        ("project_name", "TEXT"),
+        ("accomplishments", "TEXT DEFAULT '[]'"),
+    ];
+    for (col, typedef) in &sa_columns {
+        let has: bool = conn
+            .prepare(&format!(
+                "SELECT COUNT(*) FROM pragma_table_info('screenshot_analyses') WHERE name='{}'",
+                col
+            ))?
+            .query_row([], |row| row.get::<_, i64>(0))
+            .map(|c| c > 0)?;
+        if !has {
+            conn.execute(
+                &format!("ALTER TABLE screenshot_analyses ADD COLUMN {} {}", col, typedef),
+                [],
+            )?;
+        }
+    }
+
+    // recordings 添加 activity_id
+    let has_activity_id: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('recordings') WHERE name='activity_id'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)?;
+    if !has_activity_id {
+        conn.execute("ALTER TABLE recordings ADD COLUMN activity_id TEXT", [])?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_recordings_activity_id ON recordings(activity_id)",
+            [],
+        )?;
+    }
+
+    Ok(())
+}
+
+// ============================================================================
 // V2 Helpers
 // ============================================================================
 
@@ -567,9 +663,12 @@ mod tests {
         assert!(tables.contains(&"summaries".to_string()));
         assert!(tables.contains(&"proactive_suggestions".to_string()));
 
+        // 验证V4表创建
+        assert!(tables.contains(&"recordings".to_string()));
+
         // 验证版本号
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 5);
     }
 
     #[test]
@@ -634,7 +733,7 @@ mod tests {
         assert!(run_migrations(&conn).is_ok());
 
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 5);
     }
 
     #[test]

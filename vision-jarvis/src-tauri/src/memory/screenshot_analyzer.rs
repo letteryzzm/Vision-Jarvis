@@ -15,6 +15,7 @@ use crate::db::Database;
 use crate::db::schema::ScreenshotAnalysis;
 
 /// AI返回的截图理解结果（用于JSON解析）
+/// 一次性提取所有下游组件需要的信息
 #[derive(Debug, serde::Deserialize)]
 struct AIScreenshotResult {
     application: String,
@@ -27,10 +28,23 @@ struct AIScreenshotResult {
     context_tags: Vec<String>,
     #[serde(default = "default_productivity_score")]
     productivity_score: i32,
+    // V5: 一次性分析扩展
+    #[serde(default = "default_activity_category")]
+    activity_category: String,
+    #[serde(default)]
+    activity_summary: String,
+    #[serde(default)]
+    project_name: Option<String>,
+    #[serde(default)]
+    accomplishments: Vec<String>,
 }
 
 fn default_productivity_score() -> i32 {
     5
+}
+
+fn default_activity_category() -> String {
+    "other".to_string()
 }
 
 /// 分析配置
@@ -94,6 +108,10 @@ impl ScreenshotAnalyzer {
             productivity_score: ai_result.productivity_score.clamp(1, 10),
             analysis_json: response.clone(),
             analyzed_at: now,
+            activity_category: ai_result.activity_category,
+            activity_summary: ai_result.activity_summary,
+            project_name: ai_result.project_name,
+            accomplishments: ai_result.accomplishments,
         };
 
         // 5. 保存到数据库
@@ -114,46 +132,159 @@ impl ScreenshotAnalyzer {
         }
 
         info!("开始批量分析 {} 张截图", pending.len());
-
-        let mut result = AnalysisBatchResult::default();
-        result.total = pending.len();
+        let mut result = AnalysisBatchResult { total: pending.len(), ..Default::default() };
 
         for screenshot in pending {
-            let path = Path::new(&screenshot.path);
-
-            if !path.exists() {
-                warn!("截图文件不存在: {}", screenshot.path);
-                result.skipped += 1;
-                continue;
-            }
-
-            let mut retries = 0;
-            loop {
-                match self.analyze_screenshot(&screenshot.id, path).await {
-                    Ok(_) => {
-                        result.analyzed += 1;
-                        break;
-                    }
-                    Err(e) => {
-                        retries += 1;
-                        if retries > self.config.max_retries {
-                            error!("截图分析失败(已重试{}次): {} - {}", retries, screenshot.id, e);
-                            result.failed += 1;
-                            break;
-                        }
-                        warn!("截图分析失败(重试{}/{}): {} - {}", retries, self.config.max_retries, screenshot.id, e);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    }
-                }
+            match self.analyze_with_retry(&screenshot.id, &screenshot.path).await {
+                Ok(_) => result.analyzed += 1,
+                Err(None) => result.skipped += 1,
+                Err(Some(_)) => result.failed += 1,
             }
         }
 
-        info!(
-            "批量分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
-            result.total, result.analyzed, result.skipped, result.failed
-        );
-
+        info!("批量分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
+            result.total, result.analyzed, result.skipped, result.failed);
         Ok(result)
+    }
+
+    /// 分析单个录制分段
+    pub async fn analyze_recording(
+        &self,
+        recording_id: &str,
+        video_path: &Path,
+    ) -> Result<ScreenshotAnalysis> {
+        let video_data = tokio::fs::read(video_path).await?;
+        let video_base64 = BASE64.encode(&video_data);
+
+        let prompt = recording_understanding_prompt();
+        let response = self.ai_client.analyze_video(&video_base64, &prompt).await
+            .map_err(|e| anyhow::anyhow!("AI视频分析失败: {}", e))?;
+
+        let ai_result = parse_ai_response(&response)?;
+        let now = chrono::Utc::now().timestamp();
+
+        let analysis = ScreenshotAnalysis {
+            screenshot_id: recording_id.to_string(),
+            application: ai_result.application,
+            activity_type: ai_result.activity_type,
+            activity_description: ai_result.activity_description,
+            key_elements: ai_result.key_elements,
+            ocr_text: ai_result.ocr_text,
+            context_tags: ai_result.context_tags,
+            productivity_score: ai_result.productivity_score.clamp(1, 10),
+            analysis_json: response.clone(),
+            analyzed_at: now,
+            activity_category: ai_result.activity_category,
+            activity_summary: ai_result.activity_summary,
+            project_name: ai_result.project_name,
+            accomplishments: ai_result.accomplishments,
+        };
+
+        self.save_analysis(&analysis)?;
+        self.mark_recording_analyzed(recording_id)?;
+        Ok(analysis)
+    }
+
+    /// 批量分析未处理的录制分段
+    pub async fn analyze_pending_recordings(&self) -> Result<AnalysisBatchResult> {
+        let pending = self.get_pending_recordings()?;
+
+        if pending.is_empty() {
+            return Ok(AnalysisBatchResult::default());
+        }
+
+        info!("开始批量分析 {} 个录制分段", pending.len());
+        let mut result = AnalysisBatchResult { total: pending.len(), ..Default::default() };
+
+        for rec in pending {
+            match self.analyze_recording_with_retry(&rec.id, &rec.path).await {
+                Ok(_) => result.analyzed += 1,
+                Err(None) => result.skipped += 1,
+                Err(Some(_)) => result.failed += 1,
+            }
+        }
+
+        info!("录制分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
+            result.total, result.analyzed, result.skipped, result.failed);
+        Ok(result)
+    }
+
+    /// 带重试的截图分析（Ok=成功, Err(None)=跳过, Err(Some)=失败）
+    async fn analyze_with_retry(&self, id: &str, path: &str) -> std::result::Result<(), Option<anyhow::Error>> {
+        let p = Path::new(path);
+        if !p.exists() {
+            warn!("截图文件不存在: {}", path);
+            return Err(None);
+        }
+        for attempt in 0..=self.config.max_retries {
+            match self.analyze_screenshot(id, p).await {
+                Ok(_) => return Ok(()),
+                Err(e) if attempt == self.config.max_retries => {
+                    error!("截图分析失败(已重试{}次): {} - {}", attempt, id, e);
+                    return Err(Some(e));
+                }
+                Err(e) => {
+                    warn!("截图分析失败(重试{}/{}): {} - {}", attempt + 1, self.config.max_retries, id, e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+        unreachable!()
+    }
+
+    /// 带重试的录制分析
+    async fn analyze_recording_with_retry(&self, id: &str, path: &str) -> std::result::Result<(), Option<anyhow::Error>> {
+        let p = Path::new(path);
+        if !p.exists() {
+            warn!("录制文件不存在: {}", path);
+            return Err(None);
+        }
+        for attempt in 0..=self.config.max_retries {
+            match self.analyze_recording(id, p).await {
+                Ok(_) => return Ok(()),
+                Err(e) if attempt == self.config.max_retries => {
+                    error!("录制分析失败(已重试{}次): {} - {}", attempt, id, e);
+                    return Err(Some(e));
+                }
+                Err(e) => {
+                    warn!("录制分析失败(重试{}/{}): {} - {}", attempt + 1, self.config.max_retries, id, e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+        unreachable!()
+    }
+
+    /// 获取待分析的录制分段
+    fn get_pending_recordings(&self) -> Result<Vec<PendingScreenshot>> {
+        self.db.with_connection(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, path FROM recordings
+                 WHERE analyzed = 0 AND end_time IS NOT NULL
+                 ORDER BY start_time ASC
+                 LIMIT ?1"
+            )?;
+            let recs = stmt
+                .query_map([self.config.batch_size], |row| {
+                    Ok(PendingScreenshot {
+                        id: row.get(0)?,
+                        path: row.get(1)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(recs)
+        })
+    }
+
+    /// 标记录制为已分析
+    fn mark_recording_analyzed(&self, recording_id: &str) -> Result<()> {
+        self.db.with_connection(|conn| {
+            conn.execute(
+                "UPDATE recordings SET analyzed = 1 WHERE id = ?1",
+                [recording_id],
+            )?;
+            Ok(())
+        })
     }
 
     /// 获取待分析的截图
@@ -189,8 +320,9 @@ impl ScreenshotAnalyzer {
                 "INSERT OR REPLACE INTO screenshot_analyses (
                     screenshot_id, application, activity_type, activity_description,
                     key_elements, ocr_text, context_tags, productivity_score,
-                    analysis_json, analyzed_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    analysis_json, analyzed_at,
+                    activity_category, activity_summary, project_name, accomplishments
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                 rusqlite::params![
                     &analysis.screenshot_id,
                     &analysis.application,
@@ -202,6 +334,10 @@ impl ScreenshotAnalyzer {
                     analysis.productivity_score,
                     &analysis.analysis_json,
                     analysis.analyzed_at,
+                    &analysis.activity_category,
+                    &analysis.activity_summary,
+                    &analysis.project_name,
+                    serde_json::to_string(&analysis.accomplishments)?,
                 ],
             )?;
             Ok(())
@@ -262,20 +398,62 @@ fn screenshot_understanding_prompt() -> String {
   "application": "应用名称（如VSCode、Chrome、微信等）",
   "activity_type": "work|entertainment|communication|learning|other",
   "activity_description": "用户正在做什么（一句话，要具体）",
+  "activity_category": "work|entertainment|communication|other",
+  "activity_summary": "活动概述（供时间线展示，一句话）",
   "key_elements": ["关键元素1", "关键元素2"],
   "ocr_text": "屏幕上的重要文本（如果有，简要提取）",
   "context_tags": ["标签1", "标签2"],
-  "productivity_score": 5
+  "productivity_score": 5,
+  "project_name": "项目名称或null",
+  "accomplishments": ["完成了XX"]
 }
 
 要求：
 1. application: 识别主要应用程序名称
 2. activity_type: 只能是 work/entertainment/communication/learning/other 之一
 3. activity_description: 必须具体（如"在VSCode中编写Rust代码"而非"使用电脑"）
-4. key_elements: 提取窗口标题、文件名、网页标题等关键信息
-5. ocr_text: 仅提取重要文本，不要全部OCR
-6. context_tags: 2-5个描述当前上下文的标签
-7. productivity_score: 1=纯娱乐 5=一般 10=深度工作
+4. activity_category: 只能是 work/entertainment/communication/other 之一
+5. activity_summary: 简明概述当前活动（供时间线展示）
+6. key_elements: 提取窗口标题、文件名、网页标题等关键信息
+7. ocr_text: 仅提取重要文本，不要全部OCR
+8. context_tags: 2-5个描述当前上下文的标签
+9. productivity_score: 1=纯娱乐 5=一般 10=深度工作
+10. project_name: 如果能识别出用户在做什么项目则填写项目名，否则返回null
+11. accomplishments: 从截图中提取的成果要点（0-3条），没有则返回空数组
+
+只返回JSON，不要其他内容。"#.to_string()
+}
+
+/// 录制分段理解Prompt
+fn recording_understanding_prompt() -> String {
+    r#"分析这段屏幕录制视频，提取以下信息。严格按JSON格式返回，不要包含其他文字：
+
+{
+  "application": "主要使用的应用名称",
+  "activity_type": "work|entertainment|communication|learning|other",
+  "activity_description": "用户在这段时间内做了什么（一句话，要具体）",
+  "activity_category": "work|entertainment|communication|other",
+  "activity_summary": "这段时间的活动概述（供时间线展示）",
+  "key_elements": ["关键元素1", "关键元素2"],
+  "ocr_text": "屏幕上的重要文本（简要提取）",
+  "context_tags": ["标签1", "标签2"],
+  "productivity_score": 5,
+  "project_name": "项目名称或null",
+  "accomplishments": ["完成了XX", "修改了YY"]
+}
+
+要求：
+1. application: 识别视频中主要使用的应用程序
+2. activity_type: 只能是 work/entertainment/communication/learning/other 之一
+3. activity_description: 综合整段视频描述用户活动（如"在VSCode中编写Rust代码并调试"）
+4. activity_category: 只能是 work/entertainment/communication/other 之一
+5. activity_summary: 简明概述这段时间的活动（供时间线展示）
+6. key_elements: 提取窗口标题、文件名、网页标题等关键信息
+7. ocr_text: 仅提取重要文本
+8. context_tags: 2-5个描述当前上下文的标签
+9. productivity_score: 1=纯娱乐 5=一般 10=深度工作
+10. project_name: 如果能识别出用户在做什么项目则填写项目名（如"Vision-Jarvis"、"论文写作"），无法识别返回null
+11. accomplishments: 这段时间的成果要点（1-3条），没有明显成果则返回空数组
 
 只返回JSON，不要其他内容。"#.to_string()
 }
