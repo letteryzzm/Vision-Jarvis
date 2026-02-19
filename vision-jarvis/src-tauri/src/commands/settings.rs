@@ -1,6 +1,7 @@
 /// 设置相关 Commands
 
 use tauri::State;
+use log::{info, error};
 use super::{ApiResponse, AppState};
 use crate::settings::AppSettings;
 
@@ -21,8 +22,11 @@ pub async fn get_settings(
 #[tauri::command]
 pub async fn update_settings(
     state: State<'_, AppState>,
-    settings: AppSettings,
+    mut settings: AppSettings,
 ) -> Result<ApiResponse<bool>, String> {
+    // 强制 clamp 录制分段时长到 30-300 秒
+    settings.capture_interval_seconds = settings.capture_interval_seconds.clamp(30, 300);
+
     let old_settings = (*state.settings).get();
 
     let result = (*state.settings).update(settings.clone());
@@ -40,31 +44,28 @@ pub async fn update_settings(
 
         if memory_changed {
             if settings.memory_enabled {
-                // 启动调度器
                 if !scheduler.is_running().await {
-                    scheduler.interval_seconds = settings.capture_interval_seconds;
+                    scheduler.interval_seconds = settings.capture_interval_seconds as u64;
                     if let Err(e) = scheduler.start().await {
-                        eprintln!("[Settings] Failed to start scheduler: {}", e);
+                        error!("Failed to start scheduler: {}", e);
                     } else {
-                        eprintln!("[Settings] Scheduler started (interval: {}s)", settings.capture_interval_seconds);
+                        info!("Scheduler started (segment: {}s)", settings.capture_interval_seconds);
                     }
                 }
             } else {
-                // 停止调度器
                 if scheduler.is_running().await {
                     if let Err(e) = scheduler.stop().await {
-                        eprintln!("[Settings] Failed to stop scheduler: {}", e);
+                        error!("Failed to stop scheduler: {}", e);
                     } else {
-                        eprintln!("[Settings] Scheduler stopped");
+                        info!("Scheduler stopped");
                     }
                 }
             }
         } else if interval_changed && settings.memory_enabled {
-            // 仅间隔变化，更新间隔（会自动重启）
-            if let Err(e) = scheduler.update_interval(settings.capture_interval_seconds).await {
-                eprintln!("[Settings] Failed to update interval: {}", e);
+            if let Err(e) = scheduler.update_interval(settings.capture_interval_seconds as u64).await {
+                error!("Failed to update interval: {}", e);
             } else {
-                eprintln!("[Settings] Interval updated to {}s", settings.capture_interval_seconds);
+                info!("Segment duration updated: {}s", settings.capture_interval_seconds);
             }
         }
     }

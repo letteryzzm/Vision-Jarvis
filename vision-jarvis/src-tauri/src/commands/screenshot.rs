@@ -1,10 +1,10 @@
-/// 截图相关 Commands
+/// 录制相关 Commands
 
 use tauri::State;
 use serde::{Deserialize, Serialize};
 use super::{ApiResponse, AppState};
 
-/// 截图信息
+/// 截图信息（保留兼容）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScreenshotInfo {
     pub id: String,
@@ -13,41 +13,13 @@ pub struct ScreenshotInfo {
     pub analyzed: bool,
 }
 
-/// 捕获截图
+/// 手动触发截图（保留兼容，实际不再使用）
 #[tauri::command]
-pub async fn capture_screenshot(state: State<'_, AppState>) -> Result<ApiResponse<ScreenshotInfo>, String> {
-    match (*state.screen_capture).capture_screenshot() {
-        Ok(file_path) => {
-            let timestamp = chrono::Utc::now().timestamp();
-            let id = uuid::Uuid::new_v4().to_string();
-            let path_str = file_path.to_string_lossy().to_string();
-
-            // 保存到数据库
-            let db_result = state.db.with_connection(|conn| {
-                conn.execute(
-                    "INSERT INTO screenshots (id, path, captured_at, analyzed)
-                     VALUES (?1, ?2, ?3, ?4)",
-                    (&id, &path_str, timestamp, 0),
-                )?;
-                Ok(())
-            });
-
-            if let Err(e) = db_result {
-                return Ok(ApiResponse::error(format!("数据库保存失败: {}", e)));
-            }
-
-            Ok(ApiResponse::success(ScreenshotInfo {
-                id,
-                path: path_str,
-                captured_at: timestamp,
-                analyzed: false,
-            }))
-        }
-        Err(e) => Ok(ApiResponse::error(format!("截图失败: {}", e))),
-    }
+pub async fn capture_screenshot(_state: State<'_, AppState>) -> Result<ApiResponse<ScreenshotInfo>, String> {
+    Ok(ApiResponse::error("截图模式已替换为录制模式，请使用录制功能".to_string()))
 }
 
-/// 获取截图列表
+/// 获取截图列表（保留兼容）
 #[tauri::command]
 pub async fn get_screenshots(
     state: State<'_, AppState>,
@@ -86,7 +58,6 @@ pub async fn delete_screenshot(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<ApiResponse<bool>, String> {
-    // 先获取文件路径
     let path_result = state.db.with_connection(|conn| {
         let mut stmt = conn.prepare("SELECT path FROM screenshots WHERE id = ?1")?;
         let path: String = stmt.query_row([&id], |row| row.get(0))?;
@@ -98,12 +69,10 @@ pub async fn delete_screenshot(
         Err(e) => return Ok(ApiResponse::error(format!("查询失败: {}", e))),
     };
 
-    // 删除文件
     if let Err(e) = std::fs::remove_file(&path) {
         log::warn!("删除文件失败: {}", e);
     }
 
-    // 删除数据库记录
     let db_result = state.db.with_connection(|conn| {
         conn.execute("DELETE FROM screenshots WHERE id = ?1", [&id])?;
         Ok(())
@@ -116,12 +85,12 @@ pub async fn delete_screenshot(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchedulerStatus {
     pub is_running: bool,
-    pub interval_seconds: u8,
+    pub interval_seconds: u64,
     pub memory_enabled: bool,
     pub storage_path: String,
 }
 
-/// 获取调度器状态（调试用）
+/// 获取调度器状态
 #[tauri::command]
 pub async fn get_scheduler_status(state: State<'_, AppState>) -> Result<ApiResponse<SchedulerStatus>, String> {
     let scheduler = state.scheduler.lock().await;

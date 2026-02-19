@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use crate::db::Database;
 use crate::settings::SettingsManager;
-use crate::capture::ScreenCapture;
+use crate::capture::screen_recorder::ScreenRecorder;
 use crate::capture::scheduler::CaptureScheduler;
 use crate::notification::scheduler::NotificationScheduler;
 use crate::memory::pipeline::PipelineScheduler;
@@ -27,7 +27,6 @@ pub use ai_config::AIConfigState;
 pub struct AppState {
     pub db: Arc<Database>,
     pub settings: Arc<SettingsManager>,
-    pub screen_capture: Arc<ScreenCapture>,
     pub scheduler: Arc<tokio::sync::Mutex<CaptureScheduler>>,
     pub notification_scheduler: Arc<NotificationScheduler>,
     pub pipeline: Arc<PipelineScheduler>,
@@ -38,12 +37,12 @@ impl AppState {
         let db = Arc::new(db);
         let settings = Arc::new(settings);
         let storage_path = settings.get_storage_path();
-        let interval = settings.get_capture_interval();
+        let interval = settings.get_capture_interval() as u64;
 
-        let screen_capture = ScreenCapture::new(storage_path.clone())
-            .expect("Failed to create ScreenCapture");
+        let recorder = ScreenRecorder::new(storage_path.clone(), interval, 2)
+            .expect("Failed to create ScreenRecorder");
 
-        let scheduler = CaptureScheduler::new(screen_capture.clone(), interval)
+        let scheduler = CaptureScheduler::new(recorder, interval)
             .with_db(Arc::clone(&db));
 
         let notification_scheduler = NotificationScheduler::new(
@@ -51,17 +50,15 @@ impl AppState {
             Arc::clone(&settings),
         );
 
-        // 创建记忆管道（不需要AI也能启动）
         let pipeline = PipelineScheduler::new(
             Arc::clone(&db),
             storage_path,
-            false, // AI总结默认关闭，等连接AI后启用
+            false,
         ).expect("Failed to create PipelineScheduler");
 
         Self {
             db,
             settings,
-            screen_capture: Arc::new(screen_capture),
             scheduler: Arc::new(tokio::sync::Mutex::new(scheduler)),
             notification_scheduler: Arc::new(notification_scheduler),
             pipeline: Arc::new(pipeline),

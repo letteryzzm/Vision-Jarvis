@@ -2,7 +2,7 @@
 ///
 /// 管理多窗口系统：Memory窗口、Popup-Setting窗口、浮球状态切换
 
-use tauri::{AppHandle, Manager, LogicalSize, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewWindowBuilder};
 use super::ApiResponse;
 
 /// 打开 Memory 窗口
@@ -212,12 +212,8 @@ pub async fn collapse_to_ball(app: AppHandle) -> ApiResponse<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_window_commands_exist() {
-        // 这些测试只是确保函数签名正确
-        // 实际的窗口操作需要在集成测试中进行
         assert!(true);
     }
 }
