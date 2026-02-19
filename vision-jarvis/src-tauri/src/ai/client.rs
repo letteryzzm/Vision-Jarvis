@@ -27,12 +27,21 @@ pub enum AIContent {
 
     #[serde(rename = "image_url")]
     ImageUrl { image_url: ImageUrl },
+
+    /// Gemini 原生 inline_data 格式（用于视频等多媒体）
+    #[serde(rename = "inline_data")]
+    InlineData { inline_data: InlineData },
 }
 
-/// 图像 URL
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageUrl {
     pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InlineData {
+    pub mime_type: String,
+    pub data: String,
 }
 
 /// AI 请求体 (OpenAI 兼容格式)
@@ -82,13 +91,6 @@ impl AIClient {
     }
 
     /// 分析图像
-    ///
-    /// # 参数
-    /// - `image_base64`: Base64 编码的图像数据
-    /// - `prompt`: 分析提示词
-    ///
-    /// # 返回
-    /// AI 分析结果文本
     pub async fn analyze_image(
         &self,
         image_base64: &str,
@@ -98,9 +100,7 @@ impl AIClient {
             AIMessage {
                 role: "user".to_string(),
                 content: vec![
-                    AIContent::Text {
-                        text: prompt.to_string(),
-                    },
+                    AIContent::Text { text: prompt.to_string() },
                     AIContent::ImageUrl {
                         image_url: ImageUrl {
                             url: format!("data:image/jpeg;base64,{}", image_base64),
@@ -109,7 +109,31 @@ impl AIClient {
                 ],
             },
         ];
+        self.send_request(messages).await
+    }
 
+    /// 分析视频（使用 Gemini 原生 inline_data 格式）
+    pub async fn analyze_video(
+        &self,
+        video_base64: &str,
+        prompt: &str,
+    ) -> AppResult<String> {
+        let messages = vec![
+            AIMessage {
+                role: "user".to_string(),
+                content: vec![
+                    AIContent::Text {
+                        text: prompt.to_string(),
+                    },
+                    AIContent::InlineData {
+                        inline_data: InlineData {
+                            mime_type: "video/mp4".to_string(),
+                            data: video_base64.to_string(),
+                        },
+                    },
+                ],
+            },
+        ];
         self.send_request(messages).await
     }
 

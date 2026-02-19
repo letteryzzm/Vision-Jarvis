@@ -5914,6 +5914,7 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "image",
+ "libc",
  "log",
  "reqwest",
  "rusqlite",

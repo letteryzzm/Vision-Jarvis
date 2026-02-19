@@ -14,6 +14,7 @@ pub use error::{AppError, AppResult};
 
 use commands::{AppState, AIConfigState};
 use tauri::{Manager, LogicalPosition};
+use log::{info, error};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -74,52 +75,65 @@ pub fn run() {
                     let x = (logical_width - window_width - margin_right).max(0.0);
                     let y = margin_top;
 
-                    println!("Setting window position: x={}, y={} (screen width={})", x, y, logical_width);
+                    println!("Window position: x={}, y={}", x, y);
                     let _ = window.set_position(LogicalPosition::new(x, y));
                 }
             }
 
-            // 启动截图调度器（如果记忆功能启用）
+            // 启动录制调度器（如果记忆功能启用）
             let state = app.state::<AppState>();
             let memory_enabled = state.settings.is_memory_enabled();
             let storage_path = state.settings.get_storage_path();
-            eprintln!("[Vision-Jarvis] memory_enabled={}, storage_path={}", memory_enabled, storage_path.display());
+            info!("memory_enabled={}, storage={}", memory_enabled, storage_path.display());
 
             if memory_enabled {
                 let scheduler = state.scheduler.clone();
 
                 tauri::async_runtime::spawn(async move {
                     let mut scheduler = scheduler.lock().await;
-                    eprintln!("[Vision-Jarvis] Starting screenshot scheduler (interval: {}s)...", scheduler.interval_seconds);
+                    info!("Starting recorder (segment: {}s)", scheduler.interval_seconds);
                     match scheduler.start().await {
-                        Ok(_) => {
-                            eprintln!("[Vision-Jarvis] Screenshot scheduler started successfully!");
-                        }
-                        Err(e) => {
-                            eprintln!("[Vision-Jarvis] ERROR: Failed to start scheduler: {}", e);
-                        }
+                        Ok(_) => info!("Recorder started"),
+                        Err(e) => error!("Failed to start recorder: {}", e),
                     }
                 });
             } else {
-                eprintln!("[Vision-Jarvis] Memory disabled, skipping screenshot scheduler");
+                info!("Memory disabled, recorder skipped");
             }
 
             // 启动通知调度器
             let notif_scheduler = state.notification_scheduler.clone();
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                eprintln!("[Vision-Jarvis] Starting notification scheduler...");
                 notif_scheduler.start(app_handle);
-                eprintln!("[Vision-Jarvis] Notification scheduler started!");
+                info!("Notification scheduler started");
             });
 
-            // 启动记忆管道调度器
+            // 启动记忆管道调度器，并尝试自动连接 AI
             if memory_enabled {
                 let pipeline = state.pipeline.clone();
+                let ai_state = app.state::<AIConfigState>();
+                let ai_provider = ai_state.get_active_provider_config();
+
                 tauri::async_runtime::spawn(async move {
-                    eprintln!("[Vision-Jarvis] Starting memory pipeline...");
-                    pipeline.start();
-                    eprintln!("[Vision-Jarvis] Memory pipeline started (AI not connected yet, configure AI provider to enable screenshot analysis)");
+                    // 如果已有 AI 配置，自动连接到管道
+                    if let Some(provider) = ai_provider {
+                        match crate::ai::AIClient::new(provider.clone()) {
+                            Ok(client) => {
+                                pipeline.connect_ai(client).await;
+                                pipeline.start();
+                                info!("Pipeline started (AI: {} / {})", provider.name, provider.model);
+                            }
+                            Err(e) => {
+                                error!("Failed to create AI client: {}", e);
+                                pipeline.start();
+                                info!("Pipeline started (AI connection failed)");
+                            }
+                        }
+                    } else {
+                        pipeline.start();
+                        info!("Pipeline started (no AI configured)");
+                    }
                 });
             }
 
