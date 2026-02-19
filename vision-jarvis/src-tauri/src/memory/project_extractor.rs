@@ -1,14 +1,13 @@
 /// 项目提取器 - 从活动中自动识别和追踪项目
 ///
 /// 核心逻辑：
-/// 1. 分析每个活动的标题、应用、标签，提取可能的项目名称
-/// 2. 与现有项目进行相似度匹配
-/// 3. 匹配成功则归入现有项目，否则创建新项目
-/// 4. 生成和维护项目Markdown文件
+/// 1. 优先从 screenshot_analyses 表读取 AI 已提取的 project_name
+/// 2. 回退到规则提取（标题关键词、开发应用识别）
+/// 3. 与现有项目进行相似度匹配
+/// 4. 匹配成功则归入现有项目，否则创建新项目并生成Markdown文件
 
 use anyhow::Result;
 use chrono::Utc;
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,7 +15,6 @@ use log::{info, warn};
 use rusqlite::OptionalExtension;
 use uuid::Uuid;
 
-use crate::ai::AIClient;
 use crate::db::Database;
 use crate::db::schema::{ActivitySession, Project, ProjectStatus};
 
@@ -27,8 +25,6 @@ pub struct ProjectExtractorConfig {
     pub storage_root: PathBuf,
     /// 相似度阈值（0.0-1.0）
     pub similarity_threshold: f32,
-    /// 是否使用AI提取
-    pub enable_ai: bool,
 }
 
 impl Default for ProjectExtractorConfig {
@@ -36,25 +32,22 @@ impl Default for ProjectExtractorConfig {
         Self {
             storage_root: PathBuf::from("./memory"),
             similarity_threshold: 0.6,
-            enable_ai: false,
         }
     }
 }
 
 /// 项目提取器
 pub struct ProjectExtractor {
-    ai_client: Option<Arc<AIClient>>,
     db: Arc<Database>,
     config: ProjectExtractorConfig,
 }
 
 impl ProjectExtractor {
     pub fn new(
-        ai_client: Option<Arc<AIClient>>,
         db: Arc<Database>,
         config: ProjectExtractorConfig,
     ) -> Self {
-        Self { ai_client, db, config }
+        Self { db, config }
     }
 
     /// 从活动中提取并匹配项目
@@ -489,7 +482,6 @@ mod tests {
     #[test]
     fn test_rule_extract_dev_activity() {
         let extractor = ProjectExtractor::new(
-            None,
             Arc::new(Database::open_in_memory().unwrap()),
             ProjectExtractorConfig::default(),
         );
@@ -518,7 +510,6 @@ mod tests {
     #[test]
     fn test_rule_extract_generic_activity() {
         let extractor = ProjectExtractor::new(
-            None,
             Arc::new(Database::open_in_memory().unwrap()),
             ProjectExtractorConfig::default(),
         );

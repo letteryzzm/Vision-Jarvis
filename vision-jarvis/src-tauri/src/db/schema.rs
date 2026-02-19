@@ -1,32 +1,17 @@
 /// 数据库表结构定义
 ///
 /// 表说明：
-/// - screenshots: 截图元数据和 AI 分析结果
-/// - short_term_memories: 短期记忆（活动事项）
-/// - long_term_memories: 长期记忆（日期范围总结）
+/// - recordings: 屏幕录制分段元数据
+/// - screenshot_analyses: 录制分段AI分析结果（V5一次性提取）
+/// - activities: 活动会话（由录制分段聚合生成）
+/// - projects: 自动识别的项目
+/// - habits: 习惯模式
+/// - summaries: 日/周/月总结
+/// - memory_files / memory_chunks: 向量索引
+/// - short_term_memories / long_term_memories: V1遗留（仍在使用）
 /// - settings: 应用配置
 
 use serde::{Deserialize, Serialize};
-
-/// 截图记录
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Screenshot {
-    pub id: String,
-    pub path: String,
-    pub captured_at: i64, // Unix timestamp
-    pub analyzed: bool,
-    pub analysis_result: Option<String>, // JSON
-    pub embedding: Option<Vec<u8>>, // 向量嵌入（序列化为 BLOB）
-}
-
-/// AI 分析结果
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnalysisResult {
-    pub activity: String,          // 主要活动
-    pub application: String,        // 使用的应用
-    pub description: String,        // 简要描述
-    pub category: ActivityCategory, // 分类
-}
 
 /// 活动分类
 #[derive(Debug, Clone, Serialize, Deserialize)]
