@@ -3,7 +3,7 @@
 /// 基于用户行为和时间规则生成主动通知
 
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 
 pub mod scheduler;
 pub mod rules;
@@ -78,47 +78,15 @@ impl Notification {
         }
     }
 
-    /// 创建带调度时间的通知
-    pub fn scheduled(
-        notification_type: NotificationType,
-        priority: NotificationPriority,
-        title: String,
-        message: String,
-        scheduled_at: DateTime<Utc>,
-    ) -> Self {
-        let mut notification = Self::new(notification_type, priority, title, message);
-        notification.scheduled_at = Some(scheduled_at.timestamp());
-        notification
-    }
-
     /// 标记为已发送
     pub fn mark_sent(&mut self) {
         self.sent_at = Some(Utc::now().timestamp());
-    }
-
-    /// 标记为已关闭
-    pub fn dismiss(&mut self) {
-        self.dismissed = true;
-    }
-
-    /// 是否应该发送
-    pub fn should_send(&self) -> bool {
-        if self.dismissed || self.sent_at.is_some() {
-            return false;
-        }
-
-        if let Some(scheduled_at) = self.scheduled_at {
-            Utc::now().timestamp() >= scheduled_at
-        } else {
-            true
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Duration;
 
     #[test]
     fn test_notification_creation() {
@@ -136,21 +104,6 @@ mod tests {
     }
 
     #[test]
-    fn test_scheduled_notification() {
-        let scheduled_time = Utc::now() + Duration::hours(1);
-        let notification = Notification::scheduled(
-            NotificationType::WaterReminder,
-            NotificationPriority::Normal,
-            "喝水提醒".to_string(),
-            "该喝水了".to_string(),
-            scheduled_time,
-        );
-
-        assert!(!notification.should_send());
-        assert_eq!(notification.scheduled_at, Some(scheduled_time.timestamp()));
-    }
-
-    #[test]
     fn test_mark_sent() {
         let mut notification = Notification::new(
             NotificationType::SedentaryReminder,
@@ -159,23 +112,9 @@ mod tests {
             "测试消息".to_string(),
         );
 
-        assert!(notification.should_send());
+        assert!(notification.sent_at.is_none());
         notification.mark_sent();
-        assert!(!notification.should_send());
-    }
-
-    #[test]
-    fn test_dismiss_notification() {
-        let mut notification = Notification::new(
-            NotificationType::ScreenInactivityReminder,
-            NotificationPriority::Normal,
-            "测试".to_string(),
-            "测试消息".to_string(),
-        );
-
-        notification.dismiss();
-        assert!(!notification.should_send());
-        assert!(notification.dismissed);
+        assert!(notification.sent_at.is_some());
     }
 
     #[test]

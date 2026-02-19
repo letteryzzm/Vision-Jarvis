@@ -3,13 +3,12 @@
 /// 从数据库查询真实数据构建 RuleContext
 
 use anyhow::Result;
-use chrono::{Utc, Local, Timelike};
+use chrono::{Local, Timelike, Utc};
 use crate::db::Database;
 use super::rules::RuleContext;
 
 /// 从数据库构建规则上下文
 pub fn build_context(db: &Database) -> Result<RuleContext> {
-    let now = Utc::now();
     let local_now = Local::now();
 
     let continuous_work_minutes = query_continuous_work_minutes(db)?;
@@ -19,7 +18,6 @@ pub fn build_context(db: &Database) -> Result<RuleContext> {
     let (project_inactive_days, inactive_project_name) = query_inactive_project(db)?;
 
     Ok(RuleContext {
-        now,
         local_now,
         continuous_work_minutes,
         inactive_minutes,
@@ -186,7 +184,6 @@ mod tests {
     #[test]
     fn test_build_context_no_db() {
         let ctx = RuleContext {
-            now: Utc::now(),
             local_now: Local::now(),
             continuous_work_minutes: 0,
             inactive_minutes: 0,

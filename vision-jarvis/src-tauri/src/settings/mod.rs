@@ -22,13 +22,6 @@ impl SettingsManager {
         }
     }
 
-    /// 从配置加载设置
-    pub fn with_settings(settings: AppSettings) -> Self {
-        Self {
-            settings: Arc::new(Mutex::new(settings)),
-        }
-    }
-
     /// 获取当前设置的副本
     pub fn get(&self) -> AppSettings {
         self.settings.lock().unwrap().clone()
@@ -44,9 +37,9 @@ impl SettingsManager {
 
     /// 验证设置
     fn validate_settings(&self, settings: &AppSettings) -> AppResult<()> {
-        // 验证截图间隔
-        if settings.capture_interval_seconds < 1 || settings.capture_interval_seconds > 15 {
-            return Err(AppError::validation(1, "截图间隔必须在 1-15 秒之间"));
+        // 验证录制分段时长
+        if settings.capture_interval_seconds < 30 || settings.capture_interval_seconds > 300 {
+            return Err(AppError::validation(1, "录制分段时长必须在 30-300 秒之间"));
         }
 
         // 验证存储限制
@@ -114,8 +107,8 @@ impl SettingsManager {
         settings.memory_enabled
     }
 
-    /// 获取截图间隔（秒）
-    pub fn get_capture_interval(&self) -> u8 {
+    /// 获取录制分段时长（秒）
+    pub fn get_capture_interval(&self) -> u16 {
         let settings = self.settings.lock().unwrap();
         settings.capture_interval_seconds
     }
@@ -136,7 +129,7 @@ mod tests {
         let manager = SettingsManager::new();
         let settings = manager.get();
 
-        assert_eq!(settings.capture_interval_seconds, 5);
+        assert_eq!(settings.capture_interval_seconds, 60);
         assert!(settings.memory_enabled);
         assert_eq!(settings.storage_limit_mb, 1024);
     }
@@ -149,10 +142,10 @@ mod tests {
         settings.capture_interval_seconds = 0;
         assert!(manager.validate_settings(&settings).is_err());
 
-        settings.capture_interval_seconds = 16;
+        settings.capture_interval_seconds = 301;
         assert!(manager.validate_settings(&settings).is_err());
 
-        settings.capture_interval_seconds = 5;
+        settings.capture_interval_seconds = 60;
         assert!(manager.validate_settings(&settings).is_ok());
     }
 
@@ -206,10 +199,10 @@ mod tests {
     fn test_update_settings() {
         let manager = SettingsManager::new();
         let mut new_settings = AppSettings::default();
-        new_settings.capture_interval_seconds = 10;
+        new_settings.capture_interval_seconds = 120;
 
         assert!(manager.update(new_settings.clone()).is_ok());
-        assert_eq!(manager.get().capture_interval_seconds, 10);
+        assert_eq!(manager.get().capture_interval_seconds, 120);
     }
 
     #[test]
@@ -220,6 +213,6 @@ mod tests {
 
         assert!(manager.update(invalid_settings).is_err());
         // 原设置应该保持不变
-        assert_eq!(manager.get().capture_interval_seconds, 5);
+        assert_eq!(manager.get().capture_interval_seconds, 60);
     }
 }

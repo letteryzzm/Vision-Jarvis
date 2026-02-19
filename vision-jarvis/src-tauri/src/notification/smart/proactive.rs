@@ -179,11 +179,10 @@ impl NotificationRule for ProjectProgressRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Utc, Local};
+    use chrono::Local;
 
     fn test_context() -> RuleContext {
         RuleContext {
-            now: Utc::now(),
             local_now: Local::now(),
             continuous_work_minutes: 0,
             inactive_minutes: 0,

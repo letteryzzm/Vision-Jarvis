@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FolderType {
     Screenshots,
+    Recordings,
     Memories,
     Database,
     Logs,
@@ -19,10 +20,10 @@ pub enum FolderType {
 }
 
 impl FolderType {
-    /// 获取文件夹名称
     pub fn folder_name(&self) -> &str {
         match self {
             FolderType::Screenshots => "screenshots",
+            FolderType::Recordings => "recordings",
             FolderType::Memories => "memories",
             FolderType::Database => "database",
             FolderType::Logs => "logs",
@@ -34,21 +35,14 @@ impl FolderType {
 /// 存储信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageInfo {
-    /// 总使用量（字节）
     pub total_used_bytes: u64,
-    /// 截图文件夹使用量
     pub screenshots_bytes: u64,
-    /// 记忆文件夹使用量
+    pub recordings_bytes: u64,
     pub memories_bytes: u64,
-    /// 数据库使用量
     pub database_bytes: u64,
-    /// 日志使用量
     pub logs_bytes: u64,
-    /// 临时文件使用量
     pub temp_bytes: u64,
-    /// 文件总数
     pub total_files: u64,
-    /// 根路径
     pub root_path: String,
 }
 
@@ -125,29 +119,29 @@ impl StorageManager {
 
     /// 获取存储信息
     pub fn get_storage_info(&self) -> Result<StorageInfo> {
-        let (screenshots_bytes, screenshots_count) =
-            self.calculate_dir_size(&self.get_folder_path(&FolderType::Screenshots))?;
-        let (memories_bytes, memories_count) =
-            self.calculate_dir_size(&self.get_folder_path(&FolderType::Memories))?;
-        let (database_bytes, database_count) =
-            self.calculate_dir_size(&self.get_folder_path(&FolderType::Database))?;
-        let (logs_bytes, logs_count) =
-            self.calculate_dir_size(&self.get_folder_path(&FolderType::Logs))?;
-        let (temp_bytes, temp_count) =
-            self.calculate_dir_size(&self.get_folder_path(&FolderType::Temp))?;
+        let folders = [
+            FolderType::Screenshots,
+            FolderType::Recordings,
+            FolderType::Memories,
+            FolderType::Database,
+            FolderType::Logs,
+            FolderType::Temp,
+        ];
+        let sizes: Vec<(u64, u64)> = folders.iter()
+            .map(|f| self.calculate_dir_size(&self.get_folder_path(f)).unwrap_or((0, 0)))
+            .collect();
 
-        let total_used_bytes =
-            screenshots_bytes + memories_bytes + database_bytes + logs_bytes + temp_bytes;
-        let total_files =
-            screenshots_count + memories_count + database_count + logs_count + temp_count;
+        let total_used_bytes: u64 = sizes.iter().map(|(b, _)| b).sum();
+        let total_files: u64 = sizes.iter().map(|(_, c)| c).sum();
 
         Ok(StorageInfo {
             total_used_bytes,
-            screenshots_bytes,
-            memories_bytes,
-            database_bytes,
-            logs_bytes,
-            temp_bytes,
+            screenshots_bytes: sizes[0].0,
+            recordings_bytes: sizes[1].0,
+            memories_bytes: sizes[2].0,
+            database_bytes: sizes[3].0,
+            logs_bytes: sizes[4].0,
+            temp_bytes: sizes[5].0,
             total_files,
             root_path: self.root_path.to_string_lossy().to_string(),
         })
@@ -218,33 +212,37 @@ impl StorageManager {
         Ok(files)
     }
 
-    /// 清理指定天数之前的旧文件
+    /// 清理指定天数之前的旧文件（递归遍历子目录）
     pub fn cleanup_old_files(&self, folder_type: &FolderType, days: u64) -> Result<usize> {
         let folder_path = self.get_folder_path(folder_type);
-
         if !folder_path.exists() {
             return Ok(0);
         }
-
         let threshold = SystemTime::now() - Duration::from_secs(days * 24 * 60 * 60);
-        let mut deleted_count = 0;
+        self.cleanup_recursive(&folder_path, threshold)
+    }
 
-        for entry in fs::read_dir(&folder_path).context("读取目录失败")? {
-            let entry = entry.context("读取目录项失败")?;
-            let metadata = entry.metadata().context("读取元数据失败")?;
-
+    fn cleanup_recursive(&self, dir: &Path, threshold: SystemTime) -> Result<usize> {
+        let mut deleted = 0;
+        for entry in fs::read_dir(dir).context("读取目录失败")? {
+            let entry = entry?;
+            let metadata = entry.metadata()?;
             if metadata.is_file() {
-                let modified = metadata.modified().context("获取修改时间失败")?;
-
-                if modified < threshold {
-                    fs::remove_file(entry.path())
-                        .context(format!("删除文件失败: {:?}", entry.path()))?;
-                    deleted_count += 1;
+                if let Ok(modified) = metadata.modified() {
+                    if modified < threshold {
+                        fs::remove_file(entry.path())?;
+                        deleted += 1;
+                    }
+                }
+            } else if metadata.is_dir() {
+                deleted += self.cleanup_recursive(&entry.path(), threshold)?;
+                // 删除空子目录
+                if fs::read_dir(entry.path())?.next().is_none() {
+                    let _ = fs::remove_dir(entry.path());
                 }
             }
         }
-
-        Ok(deleted_count)
+        Ok(deleted)
     }
 
     /// 删除单个文件
@@ -265,10 +263,6 @@ impl StorageManager {
         Ok(())
     }
 
-    /// 获取根路径
-    pub fn root_path(&self) -> &Path {
-        &self.root_path
-    }
 }
 
 #[cfg(test)]

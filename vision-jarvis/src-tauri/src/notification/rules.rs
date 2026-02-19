@@ -26,8 +26,6 @@ pub trait NotificationRule: Send + Sync {
 /// 规则上下文
 #[derive(Debug, Clone)]
 pub struct RuleContext {
-    /// 当前 UTC 时间
-    pub now: DateTime<Utc>,
     /// 当前本地时间
     pub local_now: DateTime<chrono::Local>,
     /// 连续工作时长（分钟）
@@ -405,7 +403,6 @@ mod tests {
 
     fn default_context() -> RuleContext {
         RuleContext {
-            now: Utc::now(),
             local_now: Local::now(),
             continuous_work_minutes: 0,
             inactive_minutes: 0,
