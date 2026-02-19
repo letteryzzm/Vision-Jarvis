@@ -77,6 +77,15 @@ impl CaptureScheduler {
                 let end_time = chrono::Utc::now().timestamp();
                 let duration = end_time - start_time;
 
+                // 检查文件是否存在且非空
+                let file_ok = output_path.exists()
+                    && std::fs::metadata(&output_path).map(|m| m.len() > 0).unwrap_or(false);
+
+                if !file_ok {
+                    error!("Recording file missing or empty: {}", output_path.display());
+                    continue;
+                }
+
                 // 写入 DB
                 if let Some(ref db) = db {
                     let id = uuid::Uuid::new_v4().to_string();
