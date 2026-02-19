@@ -287,34 +287,6 @@ fn compute_file_hash(content: &str) -> String {
     format!("{:x}", hasher.finalize())[..16].to_string()
 }
 
-/// 计算文本哈希
-fn compute_text_hash(text: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(text.as_bytes());
-    format!("{:x}", hasher.finalize())[..16].to_string()
-}
-
-/// 序列化embedding为BLOB
-fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
-    embedding.iter()
-        .flat_map(|f| f.to_le_bytes())
-        .collect()
-}
-
-/// 反序列化BLOB为embedding
-fn deserialize_embedding(blob: &[u8]) -> Result<Vec<f32>> {
-    if blob.len() % 4 != 0 {
-        anyhow::bail!("Invalid embedding blob length");
-    }
-
-    let embedding: Vec<f32> = blob
-        .chunks_exact(4)
-        .map(|bytes| f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
-        .collect();
-
-    Ok(embedding)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,31 +300,5 @@ mod tests {
         assert_eq!(hash1, hash2);
         assert_ne!(hash1, hash3);
         assert_eq!(hash1.len(), 16);
-    }
-
-    #[test]
-    fn test_serialize_deserialize_embedding() {
-        let original = vec![0.1, 0.2, 0.3, 0.4, 0.5];
-        let blob = serialize_embedding(&original);
-        let deserialized = deserialize_embedding(&blob).unwrap();
-
-        assert_eq!(original.len(), deserialized.len());
-        for (a, b) in original.iter().zip(deserialized.iter()) {
-            assert!((a - b).abs() < 1e-6);
-        }
-    }
-
-    #[test]
-    fn test_serialize_embedding_length() {
-        let embedding = vec![1.0, 2.0, 3.0];
-        let blob = serialize_embedding(&embedding);
-        assert_eq!(blob.len(), 12); // 3 floats * 4 bytes
-    }
-
-    #[test]
-    fn test_deserialize_invalid_blob() {
-        let invalid_blob = vec![0u8, 1, 2]; // 3 bytes, not divisible by 4
-        let result = deserialize_embedding(&invalid_blob);
-        assert!(result.is_err());
     }
 }

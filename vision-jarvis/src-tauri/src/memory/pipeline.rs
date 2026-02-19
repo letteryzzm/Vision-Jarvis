@@ -1,8 +1,8 @@
-/// 记忆管道调度器 V3
+/// 记忆管道调度器
 ///
-/// 整合主动式AI记忆系统的所有组件:
-/// 1. 截图分析 (5分钟) - AI理解每张截图
-/// 2. 活动分组 (30分钟) - 聚合截图为活动会话
+/// 整合记忆系统的所有组件:
+/// 1. 录制分析 (90秒) - AI理解每个录制分段
+/// 2. 活动分组 (30分钟) - 聚合录制分段为活动会话
 /// 3. 索引同步 (10分钟) - 增量文件索引
 /// 4. 习惯检测 (每日) - 识别行为模式
 /// 5. 日总结 (每日23:00) - 生成日总结
@@ -35,7 +35,7 @@ pub struct PipelineScheduler {
     grouper: Arc<ActivityGrouper>,
     markdown_gen: Arc<MarkdownGenerator>,
     index_manager: Arc<IndexManager>,
-    /// 动态可更新的截图分析器（支持运行时接入AI）
+    /// 动态可更新的录制分析器（支持运行时接入AI）
     screenshot_analyzer: Arc<RwLock<Option<Arc<ScreenshotAnalyzer>>>>,
     summary_generator: Arc<SummaryGenerator>,
     project_extractor: Arc<ProjectExtractor>,
@@ -49,7 +49,6 @@ impl PipelineScheduler {
         storage_root: PathBuf,
         enable_ai_summary: bool,
     ) -> Result<Self> {
-        // V2 组件
         let grouper = Arc::new(ActivityGrouper::new(
             Arc::clone(&db),
             GroupingConfig::default(),
@@ -69,7 +68,6 @@ impl PipelineScheduler {
             },
         ));
 
-        // V3 组件（不需要AI客户端也能初始化）
         let summary_generator = Arc::new(SummaryGenerator::new(
             None,
             Arc::clone(&db),
@@ -80,7 +78,6 @@ impl PipelineScheduler {
         ));
 
         let project_extractor = Arc::new(ProjectExtractor::new(
-            None,
             Arc::clone(&db),
             ProjectExtractorConfig {
                 storage_root: storage_root.clone(),
@@ -122,7 +119,7 @@ impl PipelineScheduler {
         let mut guard = self.screenshot_analyzer.write().await;
         *guard = Some(Arc::new(analyzer));
 
-        info!("[Pipeline] AI客户端已连接，截图分析已启用");
+        info!("[Pipeline] AI客户端已连接，录制分析已启用");
     }
 
     /// 检查AI是否已连接
@@ -279,66 +276,4 @@ impl PipelineScheduler {
         Ok(())
     }
 
-    /// 获取待处理的截图
-    pub fn get_pending_screenshots(db: &Database, limit: usize) -> Result<Vec<PendingScreenshot>> {
-        db.with_connection(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT id, path FROM screenshots
-                 WHERE analyzed = 0
-                 ORDER BY captured_at ASC
-                 LIMIT ?1"
-            )?;
-
-            let screenshots = stmt
-                .query_map([limit], |row| {
-                    Ok(PendingScreenshot {
-                        id: row.get(0)?,
-                        path: row.get(1)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-
-            Ok(screenshots)
-        })
-    }
-}
-
-/// 待处理的截图
-#[derive(Debug)]
-pub struct PendingScreenshot {
-    pub id: String,
-    pub path: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_pending_screenshots_empty() {
-        let db = Database::open_in_memory().unwrap();
-        let screenshots = PipelineScheduler::get_pending_screenshots(&db, 10).unwrap();
-        assert_eq!(screenshots.len(), 0);
-    }
-
-    #[test]
-    fn test_get_pending_screenshots_with_limit() {
-        let db = Database::open_in_memory().unwrap();
-
-        // 插入测试数据
-        db.with_connection(|conn| {
-            for i in 0..5 {
-                conn.execute(
-                    "INSERT INTO screenshots (id, path, captured_at, analyzed)
-                     VALUES (?1, ?2, ?3, 0)",
-                    [format!("s{}", i), format!("/path/s{}.png", i), i.to_string()],
-                )?;
-            }
-            Ok::<(), anyhow::Error>(())
-        }).unwrap();
-
-        // 限制返回3条
-        let screenshots = PipelineScheduler::get_pending_screenshots(&db, 3).unwrap();
-        assert_eq!(screenshots.len(), 3);
-    }
 }

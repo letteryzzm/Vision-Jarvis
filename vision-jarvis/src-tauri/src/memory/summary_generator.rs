@@ -4,12 +4,11 @@
 /// 输出存入 summaries 表和 Markdown 文件
 
 use anyhow::Result;
-use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
+use chrono::{DateTime, NaiveDate, Utc};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use log::{info, warn};
-use uuid::Uuid;
 
 use crate::ai::AIClient;
 use crate::db::Database;

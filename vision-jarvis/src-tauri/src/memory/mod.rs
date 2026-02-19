@@ -1,8 +1,7 @@
 /// 记忆管理模块
 ///
-/// 负责短期记忆、长期记忆的生成和管理
-/// V2: 事项驱动记忆系统
-/// V3: 主动式AI记忆系统
+/// 负责屏幕录制分析、活动分组、项目追踪、习惯检测和总结生成
+/// V5: 一次性AI分析架构 - 录制分段由AI一次性提取所有信息
 
 pub mod vector_store;
 pub mod short_term;
@@ -14,8 +13,6 @@ pub mod chunker;
 pub mod index_manager;
 pub mod hybrid_search;
 pub mod pipeline;
-
-// V3: 主动式AI记忆系统
 pub mod screenshot_analyzer;
 pub mod summary_generator;
 pub mod project_extractor;
