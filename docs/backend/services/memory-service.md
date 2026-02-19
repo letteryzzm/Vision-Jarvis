@@ -1,111 +1,183 @@
 # 记忆服务 (Memory System V3)
 
-> **最后更新**: 2026-02-19
-> **版本**: v3.0
+> **最后更新**: 2026-02-18
+> **版本**: v3.1（视频录制 + AI分析已接入）
 > **架构**: 主动式 AI 记忆系统（管道调度）
 
 ---
 
-## 架构概述
+## 数据流总览
 
-V3 采用管道调度模式，由 `pipeline.rs` 统一调度所有记忆任务：
+```
+FFmpeg录制(2fps) → mp4分段 → recordings表
+        ↓ 每90秒
+AI视频分析(Gemini inline_data) → screenshot_analyses表
+        ↓ 每30分钟
+活动分组 → activities表 + Markdown
+   ├── 项目提取 → projects表
+   ├── 索引同步(每10分钟) → memory_chunks表
+   ├── 日总结(23:00) → summaries表
+   └── 习惯检测(每日) → habits表
+```
 
-| 任务 | 调度间隔 | 模块 |
-|------|---------|------|
-| 截图 AI 分析 | 每 5 分钟 | `screenshot_analyzer.rs` |
-| 活动分组 | 每 30 分钟 | `activity_grouper.rs` |
-| 文件索引同步 | 每 10 分钟 | `index_manager.rs` |
-| 习惯检测 | 每日 | `habit_detector.rs` |
-| 日总结生成 | 每日 23:00 | `summary_generator.rs` |
+## 管道调度
+
+由 `pipeline.rs` 统一调度，使用 `tokio::select!` 并行运行：
+
+| 任务 | 调度间隔 | 模块 | 数据源 |
+|------|---------|------|--------|
+| 录制分段 AI 分析 | 每 90 秒 | `screenshot_analyzer.rs` | `recordings` 表 |
+| 活动分组 + 项目提取 | 每 30 分钟 | `activity_grouper.rs` + `project_extractor.rs` | `screenshot_analyses` 表 |
+| 文件索引同步 | 每 10 分钟 | `index_manager.rs` | Markdown 文件 |
+| 习惯检测 | 每 24 小时 | `habit_detector.rs` | `activities` 表 |
+| 日总结生成 | 每日 23:00 | `summary_generator.rs` | `activities` 表 |
 
 ---
 
-## 核心模块
+## 核心模块详解
 
-### pipeline.rs — 管道调度器
+### Layer 0: 屏幕录制 (`capture/screen_recorder.rs`)
 
-统一启动和管理所有记忆任务的后台调度。
+FFmpeg `avfoundation` 连续录制 macOS 屏幕。
 
-```rust
-pub struct PipelineScheduler {
-    db: Arc<Database>,
-    storage_path: PathBuf,
-    ai_enabled: bool,
-}
-```
+- 编码：`libx264 -preset ultrafast -crf 30`，2fps
+- 分段时长：`capture_interval_seconds`（默认 60s，范围 30-300s）
+- 存储路径：`recordings/YYYYMMDD/period/HH-MM-SS_{uuid}.mp4`
+- 分段完成后写入 `recordings` 表（`analyzed=0`）
 
-### screenshot_analyzer.rs — 截图 AI 分析器
+### Layer 1: AI 视频分析 (`screenshot_analyzer.rs`)
 
-将截图发给 AI 理解，提取结构化信息，存入 `screenshot_analyses` 表。
+每 90 秒批量分析未处理的录制分段。
+
+- 数据源：`SELECT FROM recordings WHERE analyzed=0 AND end_time IS NOT NULL`
+- 发送方式：mp4 → base64 → Gemini `inline_data` 格式（非 OpenAI `image_url`）
+- 批量大小：10 个/批，失败重试 2 次
 
 **AI 返回结构**:
-```rust
-struct AIScreenshotResult {
-    application: String,
-    activity_type: String,  // "coding" | "browsing" | "writing" 等
-    title: String,
-    tags: Vec<String>,
-    confidence: f32,
+```json
+{
+  "application": "VSCode",
+  "activity_type": "work|entertainment|communication|learning|other",
+  "activity_description": "在VSCode中编写Rust代码",
+  "key_elements": ["main.rs", "cargo.toml"],
+  "ocr_text": "fn main() {...}",
+  "context_tags": ["coding", "rust"],
+  "productivity_score": 8
 }
 ```
 
-### activity_grouper.rs — 活动分组器
+存入 `screenshot_analyses` 表，标记 `recordings.analyzed=1`。
 
-将连续相似截图聚合为 `ActivitySession`。
+### Layer 2: 活动分组 (`activity_grouper.rs`)
 
-**分组配置**:
+每 30 分钟将分析结果聚合为活动会话。
+
+**分组规则**：
+- 同一应用 + 相似活动 + 时间间隔 < 5 分钟 → 同一活动
+- 合并 `context_tags` 和 `key_elements`（去重）
+
+**拆分条件**：应用切换、间隔 > 5 分钟、持续 > 2 小时、活动类型不兼容
+
+**过滤条件**：至少 2 条记录、持续 > 1 分钟
+
+**输出**：`ActivitySession` → `activities` 表 + Markdown 文件
+
+> ⚠️ **已知缺口**：`get_ungrouped_screenshots()` 仍查 `screenshots` 表，需适配 `recordings`
+
+### Layer 2.5: 项目提取 (`project_extractor.rs`)
+
+分组后立即执行，从活动中识别项目。
+
+**提取策略**（优先级从高到低）：
+1. AI 提取（可选）：发送活动信息，返回项目名或 "NONE"
+2. 规则提取：开发类应用 → 从标题/标签提取；学习关键词 → 完整标题
+3. 长活动（>30min）→ 提取关键词
+
+**匹配**：Jaccard 相似度 + 子串匹配，阈值 0.6
+
+### Layer 3: 索引同步 (`index_manager.rs`)
+
+每 10 分钟扫描 Markdown 文件，增量更新。
+
+- 计算 SHA-256 哈希判断文件是否变化
+- 变化的文件：删旧 chunks → 重新分块 → 存入 `memory_chunks`
+- Embedding 生成当前未启用
+
+### Layer 4: 日总结 (`summary_generator.rs`)
+
+每日 23:00 自动触发（防重复：记录 `last_summary_date`）。
+
+- AI 模式：发送当日活动描述 → 生成时间分配、成就、效率评估
+- 模板模式（fallback）：统计应用使用时长 + 活动列表
+- 输出：`summaries` 表 + `summaries/daily/YYYY-MM-DD.md`
+
+### Layer 5: 习惯检测 (`habit_detector.rs`)
+
+每 24 小时运行一次。
+
+| 模式类型 | 算法 | 示例 |
+|---------|------|------|
+| 时间模式 | 按 (application, hour) 统计频率+稳定性 | "每天 08:00 使用微信" |
+| 触发模式 | 应用转移矩阵，计算 P(B\|A)，5 分钟窗口 | "用 VSCode 后通常打开 Chrome" |
+| 序列模式 | 3-app 序列检测，30 分钟窗口 | "微信→邮件→日历" |
+
+**衰减机制**：2 倍回溯期未检测到 → 置信度降 30%，低于阈值 30% → 删除
+
+---
+
+## 动态 AI 连接
+
+`PipelineScheduler` 支持运行时接入 AI 客户端：
+
 ```rust
-pub struct GroupingConfig {
-    pub max_gap_seconds: i64,       // 默认 300s
-    pub min_screenshots: usize,     // 默认 2
-    pub max_duration_seconds: i64,  // 默认 7200s
-    pub min_duration_seconds: i64,  // 默认 60s
-}
+// 启动时无需 AI（所有组件可独立运行）
+let pipeline = PipelineScheduler::new(db, storage_root, enable_ai)?;
+
+// 用户配置 AI 后动态连接
+pipeline.connect_ai(ai_client).await;
 ```
 
-### summary_generator.rs — 总结生成器
-
-聚合活动数据，调用 AI 生成日/周/月总结，存入 `summaries` 表和 Markdown 文件。
-
-### project_extractor.rs — 项目提取器
-
-从活动标题、应用、标签中识别项目，相似度匹配现有项目或创建新项目，维护项目 Markdown 文件。
-
-### habit_detector.rs — 习惯检测器
-
-从活动历史识别三种模式：
-- **时间模式**: 固定时间的习惯（如"每天 8:00 打开微信"）
-- **触发模式**: 特定事件触发的习惯
-- **序列模式**: 固定顺序的活动序列
+`connect_ai` 创建 `ScreenshotAnalyzer` 并存入 `Arc<RwLock<Option<...>>>`，分析 tick 检查是否有 analyzer 可用。
 
 ---
 
 ## 数据库表
 
-| 表名 | 用途 |
-|------|------|
-| `screenshots` | 截图记录 |
-| `screenshot_analyses` | AI 分析结果 |
-| `activity_sessions` | 聚合后的活动会话 |
-| `projects` | 自动识别的项目 |
-| `habits` | 检测到的习惯模式 |
-| `summaries` | 日/周/月总结 |
+| 表名 | 版本 | 用途 |
+|------|------|------|
+| `recordings` | V4 | 视频录制分段（path, start/end_time, fps, analyzed） |
+| `screenshot_analyses` | V3 | AI 分析结果（application, activity_type, tags, score） |
+| `activities` | V2 | 聚合后的活动会话 |
+| `projects` | V3 | 自动识别的项目 |
+| `habits` | V3 | 检测到的习惯模式 |
+| `summaries` | V3 | 日/周/月总结 |
+| `memory_chunks` | V2 | Markdown 文本分块（用于搜索） |
+| `screenshots` | V1 | 截图记录（遗留，录制模式下不再新增） |
+
+---
+
+## 已知缺口
+
+| 缺口 | 说明 | 优先级 |
+|------|------|--------|
+| activity_grouper 数据源 | 仍查 `screenshots` 表，需改为 `recordings` + `screenshot_analyses` | 高 |
+| summary/project AI 客户端 | 初始化时传 `None`，`connect_ai` 未同步更新 | 中 |
+| 周/月总结调度 | 只有日总结有自动触发 | 低 |
+| Embedding 生成 | index_manager 中已禁用 | 低 |
 
 ---
 
 ## V2 遗留模块
 
-以下模块为 V2 遗留，仍在使用但不再是核心：
-
 | 模块 | 说明 |
 |------|------|
-| `short_term.rs` | 短期记忆聚合 |
-| `long_term.rs` | 长期记忆总结 |
-| `scheduler.rs` | 旧版调度器，已被 `pipeline.rs` 替代 |
+| `short_term.rs` | 短期记忆聚合（已被 activity_grouper 替代） |
+| `long_term.rs` | 长期记忆总结（已被 summary_generator 替代） |
+| `scheduler.rs` | 旧版调度器（已被 pipeline.rs 替代） |
 
 ---
 
 ## 相关文档
 
 - [架构概述](../architecture/overview.md)
-- [CODEMAP](../../CODEMAP.md)
+- [记忆系统 V3 规划](../../planning/2026-02-16-memory-system-v3.md)

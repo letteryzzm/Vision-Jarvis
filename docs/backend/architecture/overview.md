@@ -1,7 +1,7 @@
 # 后端架构概述
 
-> **最后更新**: 2026-02-19
-> **版本**: v3.0
+> **最后更新**: 2026-02-18
+> **版本**: v3.1（视频录制 + AI分析已接入）
 > **架构模式**: 模块化 + 管道调度
 
 ---
@@ -50,10 +50,12 @@ src-tauri/src/
 │       ├── mod.rs
 │       └── proactive.rs       # V3 主动建议规则
 │
-├── capture/                   # 截图采集
-│   ├── mod.rs                 # ScreenCapture
-│   ├── scheduler.rs           # CaptureScheduler
-│   └── storage.rs             # 截图文件存储
+├── capture/                   # 屏幕录制采集
+│   ├── mod.rs                 # ScreenCapture（V1遗留）
+│   ├── screen_recorder.rs     # FFmpeg 屏幕录制器（V4 核心）
+│   ├── scheduler.rs           # CaptureScheduler（录制调度）
+│   ├── storage.rs             # 截图文件存储（V1遗留）
+│   └── video_compressor.rs    # 视频压缩工具
 │
 ├── ai/                        # AI 客户端
 │   ├── mod.rs
@@ -76,16 +78,16 @@ src-tauri/src/
 
 ---
 
-## 架构数据流（V3）
+## 架构数据流（V3.1）
 
 ```
-截图采集 (capture/)
-    ↓ 每5分钟
-截图AI分析 (memory/screenshot_analyzer.rs)
-    ↓ 每30分钟
-活动分组 (memory/activity_grouper.rs)
+FFmpeg屏幕录制 (capture/screen_recorder.rs)
+    ↓ 每60秒分段(可配置30-300s)
+录制AI分析 (memory/screenshot_analyzer.rs) [每90秒]
+    ↓
+活动分组 (memory/activity_grouper.rs) [每30分钟]
     ↓ 并行
-├── 项目提取 (memory/project_extractor.rs)
+├── 项目提取 (memory/project_extractor.rs) [分组后立即]
 ├── 习惯检测 (memory/habit_detector.rs) [每日]
 ├── 日总结生成 (memory/summary_generator.rs) [23:00]
 └── 文件索引 (memory/index_manager.rs) [每10分钟]

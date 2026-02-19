@@ -1,7 +1,7 @@
 # Vision-Jarvis 主动式AI记忆系统 - 实现计划
 
 **日期**: 2026-02-16
-**状态**: Phase 1-4 基础框架已完成
+**状态**: Phase 1 ✅ Phase 2 🔧进行中，视频录制+AI分析已接入
 
 ---
 
@@ -17,20 +17,21 @@ Data/
   habits/                  # 习惯追踪
 ```
 
-### 最终方案：日期/时段目录 + mp4压缩
+### 最终方案：FFmpeg 连续视频录制 + 分段存储
 
-截图按日期和时段组织，每个时段内的截图压缩为 mp4 视频，附带 JSON 元数据：
+~~原方案：截图按日期和时段组织，每个时段内的截图压缩为 mp4 视频。~~
+
+**新方案（已实现）**：使用 FFmpeg `avfoundation` 直接录制屏幕视频流，按固定时长分段保存 mp4。解决了离散截图丢失操作上下文的问题。
 
 ```
 Data/
-  shots/                         # 截图视频存储
+  recordings/                    # 视频录制存储（新）
     20231027/                    # 按日期分目录 (YYYYMMDD)
       0:00-12:00/                # 时段1: 凌晨到中午
-        10-00-01.mp4             # 该时段截图压缩视频 (HH-MM-SS)
-        10-00-01.json            # 对应的AI分析元数据
+        10-00-01_{uuid}.mp4      # 录制分段 (HH-MM-SS_{uuid})
+        10-05-01_{uuid}.mp4      # 下一个分段
       12:00-18:00/               # 时段2: 中午到傍晚
       18:00-24:00/               # 时段3: 傍晚到午夜
-    20231028/
   long_term_memory/              # 长期记忆
     daily_summary/               # 每日总结
     range_summary/               # 时段/周/月总结
@@ -40,17 +41,18 @@ Data/
 
 ### 存储策略
 
-1. 截图按日期 `YYYYMMDD` 分目录，每天分3个时段
-2. 每个时段内的截图定期压缩为 mp4 视频文件（减少磁盘占用）
-3. 每个 mp4 对应一个 JSON 文件，记录AI分析结果和时间戳映射
-4. 截图分析结果同时存入 SQLite（查询效率高）
-5. 长期记忆（总结、项目、习惯）独立存储，不随截图清理
+1. FFmpeg 以 2fps 连续录制屏幕，按可配置时长（默认5分钟）自动分段
+2. 录制分段按日期 `YYYYMMDD` + 时段目录组织
+3. 每个分段自动写入 `recordings` 表（start_time, end_time, duration）
+4. 分析结果存入 SQLite（查询效率高）
+5. 长期记忆（总结、项目、习惯）独立存储，不随录制清理
+6. 编码参数：`libx264 -preset ultrafast -crf 30`，平衡质量与性能
 
 ---
 
-## 二、数据库 Schema V3（已实现）
+## 二、数据库 Schema V3+V4（已实现）
 
-新增5张表：
+V3 新增5张表，V4 新增 `recordings` 表：
 
 | 表名 | 用途 |
 |------|------|
@@ -59,6 +61,7 @@ Data/
 | `habits` | 行为模式（时间/触发/序列） |
 | `summaries` | 日/周/月总结 |
 | `proactive_suggestions` | 主动建议记录 |
+| `recordings` | **V4新增** - 视频录制分段记录 |
 
 ---
 
@@ -67,10 +70,10 @@ Data/
 ### 数据流
 
 ```
-截屏(5s) → AI单帧理解(5min批量) → 活动分组(30min)
+FFmpeg录制(2fps, 默认60s分段) → AI视频分析(90s批量, Gemini inline_data)
     ↓                                    ↓
-screenshot_analyses表              activities表 + Markdown
-                                        ↓
+recordings表 +                    activities表 + Markdown
+screenshot_analyses表                   ↓
                               项目提取 + 习惯检测(每日)
                                         ↓
                               日总结(23:00) → 周/月总结
@@ -78,12 +81,12 @@ screenshot_analyses表              activities表 + Markdown
                               主动建议触发(实时)
 ```
 
-### Level 1: 单帧理解
+### Level 1: 录制分段分析
 
-- 每5分钟批量分析未处理截图
-- AI返回结构化JSON：application, activity_type, key_elements, productivity_score
-- 存入 `screenshot_analyses` 表
-- 同步兼容V2的 `analysis_result` 字段
+- 每90秒批量分析未处理的录制分段
+- 视频直接发送给AI（Gemini inline_data 格式，非 OpenAI image_url）
+- 返回结构化JSON：application, activity_type, key_elements, productivity_score
+- 存入 `screenshot_analyses` 表，标记 `recordings.analyzed=1`
 
 ### Level 2: 活动分组
 
@@ -127,12 +130,14 @@ screenshot_analyses表              activities表 + Markdown
 - [x] 管道调度器V3（pipeline.rs 集成所有组件）
 - [x] 编译验证通过
 
-### Phase 2: AI接入与调优
+### Phase 2: AI接入与调优 🔧 进行中
 
-- [ ] 将截图分析器接入实际AI API
-- [ ] 优化截图理解Prompt（测试不同模型效果）
+- [x] 将录制分析器接入实际AI API（Gemini inline_data 格式）
+- [x] 视频分析Prompt（录制分段直接发送，不提取帧）
+- [x] AIClient 支持 InlineData 格式（video/mp4）
+- [ ] 活动分组器适配 recordings 表（当前仍查 screenshots）
+- [ ] summary_generator / project_extractor 动态接入 AI 客户端
 - [ ] 实现Embedding生成（用于语义搜索和项目匹配）
-- [ ] 调优活动分组算法（利用screenshot_analyses数据）
 - [ ] 实现AI驱动的日总结
 
 ### Phase 3: 行为模式学习
@@ -155,7 +160,7 @@ screenshot_analyses表              activities表 + Markdown
 - [ ] 项目时间线视图
 - [ ] 习惯仪表盘
 - [ ] 日/周总结展示
-- [ ] 视频回放功能（截图→mp4合成）
+- [ ] 视频回放功能（直接播放录制分段）
 
 ---
 
@@ -163,12 +168,14 @@ screenshot_analyses表              activities表 + Markdown
 
 | 决策 | 方案 | 理由 |
 |------|------|------|
-| 截图存储格式 | 日期/时段目录 + mp4 | 按时间组织，压缩节省空间 |
-| 截图分析存储 | SQLite表 + JSON文件 | 双轨：DB查询快，JSON可读 |
+| 屏幕捕获方式 | FFmpeg avfoundation 连续录制 | 保留完整操作上下文，避免截图间信息丢失 |
+| 录制参数 | 2fps, libx264 ultrafast crf30 | 低CPU占用，文件体积小，足够AI分析 |
+| 分段策略 | 可配置时长（默认60秒，范围30-300） | 平衡文件大小和处理粒度 |
+| 视频发送格式 | Gemini inline_data（非 OpenAI image_url） | OpenAI兼容层不支持video MIME type |
+| 分析模型 | gemini-2.5-flash-lite（通过 aihubmix） | 支持视频输入，速度快，成本低 |
 | 项目匹配 | 字符Jaccard + 子串匹配 | 简单有效，后续可升级为Embedding |
 | 习惯检测 | 统计学方法 | 不依赖AI，本地计算快 |
-| 视频合成 | mp4压缩（每时段） | 减少磁盘占用，便于回放 |
-| AI调用频率 | 5分钟批量 | 平衡成本和实时性 |
+| AI调用频率 | 90秒批量 | 匹配60秒分段周期，留30秒缓冲 |
 
 ---
 
@@ -184,4 +191,4 @@ screenshot_analyses表              activities表 + Markdown
 
 ---
 
-**最后更新**: 2026-02-18
+**最后更新**: 2026-02-18 (视频录制+AI分析已接入，活动分组待适配)
