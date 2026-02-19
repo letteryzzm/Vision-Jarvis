@@ -2,8 +2,8 @@
 ///
 /// 核心功能：
 /// 1. YAML frontmatter序列化
-/// 2. AI总结生成(GPT-4)
-/// 3. 截图时间线渲染
+/// 2. AI总结生成
+/// 3. 录制分段时间线渲染
 /// 4. 文件写入与目录管理
 
 use anyhow::Result;
@@ -54,7 +54,7 @@ struct ActivityFrontmatter {
     screenshots: Vec<ScreenshotEntry>,
 }
 
-/// 截图条目(用于frontmatter)
+/// 录制条目(用于frontmatter)
 #[derive(Debug, Serialize, Deserialize)]
 struct ScreenshotEntry {
     id: String,
@@ -84,8 +84,8 @@ impl MarkdownGenerator {
             self.generate_template_summary(activity)
         };
 
-        // 3. 生成截图时间线
-        let timeline = self.build_screenshot_timeline(&activity.screenshot_analyses);
+        // 3. 生成录制时间线
+        let timeline = self.build_recording_timeline(&activity.screenshot_analyses);
 
         // 4. 组装完整Markdown
         let content = self.assemble_markdown(&frontmatter, &summary, &timeline)?;
@@ -185,7 +185,7 @@ impl MarkdownGenerator {
     /// 生成模板总结(fallback)
     fn generate_template_summary(&self, activity: &ActivitySession) -> String {
         format!(
-            "在{}中花费了{}分钟。期间共捕获{}张截图，主要活动包括：{}。",
+            "在{}中花费了{}分钟。期间共{}个录制分段，主要活动包括：{}。",
             activity.application,
             activity.duration_minutes,
             activity.screenshot_ids.len(),
@@ -193,21 +193,21 @@ impl MarkdownGenerator {
         )
     }
 
-    /// 构建截图时间线
-    fn build_screenshot_timeline(&self, screenshots: &[ScreenshotAnalysisSummary]) -> String {
-        if screenshots.is_empty() {
-            return String::from("无截图记录。");
+    /// 构建录制分段时间线
+    fn build_recording_timeline(&self, recordings: &[ScreenshotAnalysisSummary]) -> String {
+        if recordings.is_empty() {
+            return String::from("无录制记录。");
         }
 
-        let mut timeline = String::from("## 📸 截图时间线\n\n");
+        let mut timeline = String::from("## 🎬 录制时间线\n\n");
 
-        for screenshot in screenshots {
+        for recording in recordings {
             timeline.push_str(&format!(
                 "### {}\n\n",
-                format_timestamp_time(screenshot.timestamp)
+                format_timestamp_time(recording.timestamp)
             ));
-            timeline.push_str(&format!("**分析**: {}\n\n", screenshot.analysis));
-            timeline.push_str(&format!("**路径**: `{}`\n\n", screenshot.path));
+            timeline.push_str(&format!("**分析**: {}\n\n", recording.analysis));
+            timeline.push_str(&format!("**路径**: `{}`\n\n", recording.path));
             timeline.push_str("---\n\n");
         }
 
@@ -334,7 +334,7 @@ mod tests {
 
         assert!(summary.contains("VSCode"));
         assert!(summary.contains("60分钟"));
-        assert!(summary.contains("2张截图"));
+        assert!(summary.contains("2个录制分段"));
     }
 
     #[test]
@@ -342,9 +342,9 @@ mod tests {
         let generator = MarkdownGenerator::new(GeneratorConfig::default());
         let activity = create_test_activity();
 
-        let timeline = generator.build_screenshot_timeline(&activity.screenshot_analyses);
+        let timeline = generator.build_recording_timeline(&activity.screenshot_analyses);
 
-        assert!(timeline.contains("## 📸 截图时间线"));
+        assert!(timeline.contains("## 🎬 录制时间线"));
         assert!(timeline.contains("编写Rust函数"));
         assert!(timeline.contains("调试代码"));
         assert!(timeline.contains("screenshots/2024-01-15/s1.png"));
@@ -374,7 +374,7 @@ mod tests {
         assert!(content.contains("id: activity-2024-01-15-001"));
         assert!(content.contains("# 在VSCode中编写Rust代码"));
         assert!(content.contains("## 📋 活动总结"));
-        assert!(content.contains("## 📸 截图时间线"));
+        assert!(content.contains("## 🎬 录制时间线"));
     }
 
     #[test]
