@@ -9,8 +9,8 @@ pub struct AppSettings {
     /// 是否启用记忆功能
     pub memory_enabled: bool,
 
-    /// 截图间隔（秒）: 1-15
-    pub capture_interval_seconds: u8,
+    /// 录制分段时长（秒）: 30-300
+    pub capture_interval_seconds: u16,
 
     /// 存储路径
     pub storage_path: String,
@@ -79,7 +79,7 @@ impl Default for AppSettings {
 
         Self {
             memory_enabled: true,
-            capture_interval_seconds: 5,
+            capture_interval_seconds: 60,
             storage_path: default_storage_path,
             storage_limit_mb: 1024,
             auto_start: false,
@@ -129,7 +129,7 @@ mod tests {
         let settings = AppSettings::default();
 
         assert!(settings.memory_enabled);
-        assert_eq!(settings.capture_interval_seconds, 5);
+        assert_eq!(settings.capture_interval_seconds, 60);
         assert!(settings.storage_path.contains("vision-jarvis"));
         assert!(settings.storage_path.contains("screenshots"));
         assert_eq!(settings.storage_limit_mb, 1024);

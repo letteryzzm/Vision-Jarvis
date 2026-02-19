@@ -73,8 +73,8 @@ export async function toggleMemory(enabled: boolean): Promise<void> {
 }
 
 export async function updateCaptureInterval(seconds: number): Promise<void> {
-  if (seconds < 1 || seconds > 15) {
-    throw new Error('截图间隔必须在 1-15 秒之间')
+  if (seconds < 30 || seconds > 300) {
+    throw new Error('录制分段时长必须在 30-300 秒之间')
   }
   await updateSettings({ capture_interval_seconds: seconds })
 }

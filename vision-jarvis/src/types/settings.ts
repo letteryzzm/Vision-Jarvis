@@ -31,7 +31,7 @@ import type { AppSettings } from '../lib/tauri-api'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   memory_enabled: true,
-  capture_interval_seconds: 5,
+  capture_interval_seconds: 60,
   storage_path: '',
   storage_limit_mb: 1024,
   auto_start: false,

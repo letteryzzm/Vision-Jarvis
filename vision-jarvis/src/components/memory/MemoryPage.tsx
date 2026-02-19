@@ -26,14 +26,14 @@ export function MemoryPage() {
     timerRef.current = window.setTimeout(async () => {
       try {
         await updateCaptureInterval(value)
-        showNotification(`截图间隔已更新为 ${value} 秒`, 'success')
+        showNotification(`录制分段时长已更新为 ${Math.floor(value / 60)} 分钟`, 'success')
       } catch (err) {
         showNotification('更新失败: ' + err, 'error')
       }
     }, 500)
   }
 
-  const interval = settings?.capture_interval_seconds ?? 5
+  const interval = settings?.capture_interval_seconds ?? 60
 
   return (
     <div className="flex h-screen bg-app">
@@ -83,13 +83,14 @@ export function MemoryPage() {
         <div className="border-t border-primary pt-4 space-y-4">
           <div>
             <div className="flex justify-between text-xs mb-2">
-              <span className="text-secondary">截屏频率</span>
-              <span className="text-info">{interval}秒</span>
+              <span className="text-secondary">录制分段</span>
+              <span className="text-info">{Math.floor(interval / 60)}分钟</span>
             </div>
             <input
               type="range"
-              min="1"
-              max="15"
+              min="30"
+              max="300"
+              step="30"
               value={interval}
               onChange={(e) => handleIntervalChange(parseInt(e.target.value))}
               className="w-full"
