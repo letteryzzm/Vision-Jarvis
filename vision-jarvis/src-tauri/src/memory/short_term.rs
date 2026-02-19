@@ -10,13 +10,13 @@ use uuid::Uuid;
 
 /// 短期记忆生成器
 pub struct ShortTermMemoryGenerator {
-    db: Database,
+    _db: Database,
 }
 
 impl ShortTermMemoryGenerator {
     /// 创建新的生成器
     pub fn new(db: Database) -> Self {
-        Self { db }
+        Self { _db: db }
     }
 
     /// 生成指定日期的短期记忆
@@ -42,7 +42,7 @@ impl ShortTermMemoryGenerator {
     }
 
     /// 获取指定日期的已分析截图
-    fn get_analyzed_screenshots_for_date(&self, date: &NaiveDate) -> Result<Vec<ScreenshotInfo>> {
+    fn get_analyzed_screenshots_for_date(&self, _date: &NaiveDate) -> Result<Vec<ScreenshotInfo>> {
         // 这里简化实现，实际应该从数据库查询
         // TODO: 实现数据库查询逻辑
         Ok(Vec::new())

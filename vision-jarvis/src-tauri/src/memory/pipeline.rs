@@ -31,7 +31,6 @@ use super::{
 /// 管道调度器
 pub struct PipelineScheduler {
     db: Arc<Database>,
-    storage_root: PathBuf,
     grouper: Arc<ActivityGrouper>,
     markdown_gen: Arc<MarkdownGenerator>,
     index_manager: Arc<IndexManager>,
@@ -95,7 +94,6 @@ impl PipelineScheduler {
 
         Ok(Self {
             db,
-            storage_root,
             grouper,
             markdown_gen,
             index_manager,

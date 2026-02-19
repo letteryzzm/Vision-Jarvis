@@ -58,7 +58,9 @@ pub struct AnalyzedRecording {
     pub activity_summary: String,
     pub key_elements: Vec<String>,
     pub context_tags: Vec<String>,
+    #[allow(dead_code)]
     pub productivity_score: i32,
+    #[allow(dead_code)]
     pub project_name: Option<String>,
 }
 

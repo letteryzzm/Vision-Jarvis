@@ -102,55 +102,6 @@ impl SummaryGenerator {
         Ok(summary)
     }
 
-    /// 生成周总结
-    pub async fn generate_weekly(&self, week_start: &str, week_end: &str) -> Result<Summary> {
-        let activities = self.get_activities_for_range(week_start, week_end)?;
-
-        if activities.is_empty() {
-            return Err(anyhow::anyhow!("时间段 {}-{} 没有活动记录", week_start, week_end));
-        }
-
-        // 获取该周的日总结
-        let daily_summaries = self.get_summaries_for_range(week_start, week_end, "daily")?;
-
-        let content = if self.config.enable_ai {
-            if let Some(ref client) = self.ai_client {
-                match self.generate_ai_range_summary(client, &activities, &daily_summaries, "周").await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        warn!("AI周总结生成失败: {}，使用模板", e);
-                        self.generate_template_range_summary(&activities, week_start, week_end, "周")
-                    }
-                }
-            } else {
-                self.generate_template_range_summary(&activities, week_start, week_end, "周")
-            }
-        } else {
-            self.generate_template_range_summary(&activities, week_start, week_end, "周")
-        };
-
-        let markdown_path = format!("summaries/weekly/{}_{}.md", week_start, week_end);
-        let activity_ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
-
-        let summary = Summary {
-            id: format!("summary-weekly-{}", week_start),
-            summary_type: SummaryType::Weekly,
-            date_start: week_start.to_string(),
-            date_end: week_end.to_string(),
-            content: content.clone(),
-            activity_ids,
-            project_ids: None,
-            markdown_path: markdown_path.clone(),
-            created_at: Utc::now().timestamp(),
-        };
-
-        let full_content = self.format_range_markdown(&summary, &activities, "周");
-        self.write_file(&markdown_path, &full_content)?;
-        self.save_summary(&summary)?;
-
-        Ok(summary)
-    }
-
     /// AI生成日总结
     async fn generate_ai_daily_summary(
         &self,
@@ -209,40 +160,6 @@ impl SummaryGenerator {
         Ok(response)
     }
 
-    /// AI生成时间段总结
-    async fn generate_ai_range_summary(
-        &self,
-        client: &AIClient,
-        activities: &[ActivitySession],
-        daily_summaries: &[Summary],
-        period_name: &str,
-    ) -> Result<String> {
-        let summaries_desc = daily_summaries.iter()
-            .map(|s| format!("### {}\n{}", s.date_start, s.content))
-            .collect::<Vec<_>>()
-            .join("\n\n");
-
-        let prompt = format!(
-            r#"基于以下日总结，生成{}总结。
-
-{}
-
-共{}个活动。请生成：
-1. 本{}重点事项
-2. 时间分配趋势
-3. 效率变化
-4. 改进建议
-
-简洁专业，直接输出内容。"#,
-            period_name, summaries_desc, activities.len(), period_name
-        );
-
-        let response = client.send_text(&prompt).await
-            .map_err(|e| anyhow::anyhow!("AI调用失败: {}", e))?;
-
-        Ok(response)
-    }
-
     /// 模板日总结
     fn generate_template_daily_summary(&self, activities: &[ActivitySession], date: &str) -> String {
         let total_minutes: i64 = activities.iter().map(|a| a.duration_minutes).sum();
@@ -272,21 +189,6 @@ impl SummaryGenerator {
         )
     }
 
-    /// 模板时间段总结
-    fn generate_template_range_summary(
-        &self,
-        activities: &[ActivitySession],
-        start: &str,
-        end: &str,
-        period: &str,
-    ) -> String {
-        let total_minutes: i64 = activities.iter().map(|a| a.duration_minutes).sum();
-        format!(
-            "{}总结 ({} ~ {})\n总活动时间: {}分钟\n活动数: {}",
-            period, start, end, total_minutes, activities.len()
-        )
-    }
-
     /// 格式化日总结Markdown
     fn format_daily_markdown(&self, summary: &Summary, activities: &[ActivitySession]) -> String {
         let frontmatter = format!(
@@ -300,45 +202,12 @@ impl SummaryGenerator {
         )
     }
 
-    /// 格式化时间段总结Markdown
-    fn format_range_markdown(&self, summary: &Summary, activities: &[ActivitySession], period: &str) -> String {
-        let frontmatter = format!(
-            "---\nid: {}\ntype: {}\ndate_start: {}\ndate_end: {}\nactivity_count: {}\ncreated_at: {}\n---",
-            summary.id,
-            summary.summary_type.as_str(),
-            summary.date_start,
-            summary.date_end,
-            activities.len(),
-            summary.created_at
-        );
-
-        format!(
-            "{}\n\n# {} ~ {} {}总结\n\n{}\n",
-            frontmatter, summary.date_start, summary.date_end, period, summary.content
-        )
-    }
-
     /// 获取指定日期的活动
     fn get_activities_for_date(&self, date: &str) -> Result<Vec<ActivitySession>> {
         let parsed = NaiveDate::parse_from_str(date, "%Y-%m-%d")?;
         let start_ts = parsed.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
         let end_ts = parsed.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp();
 
-        self.get_activities_for_timestamp_range(start_ts, end_ts)
-    }
-
-    /// 获取指定时间范围的活动
-    fn get_activities_for_range(&self, start: &str, end: &str) -> Result<Vec<ActivitySession>> {
-        let start_date = NaiveDate::parse_from_str(start, "%Y-%m-%d")?;
-        let end_date = NaiveDate::parse_from_str(end, "%Y-%m-%d")?;
-        let start_ts = start_date.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
-        let end_ts = end_date.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp();
-
-        self.get_activities_for_timestamp_range(start_ts, end_ts)
-    }
-
-    /// 按时间戳范围查询活动
-    fn get_activities_for_timestamp_range(&self, start_ts: i64, end_ts: i64) -> Result<Vec<ActivitySession>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, title, start_time, end_time, duration_minutes,
@@ -376,46 +245,6 @@ impl SummaryGenerator {
             )?.collect::<rusqlite::Result<Vec<_>>>()?;
 
             Ok(activities)
-        })
-    }
-
-    /// 获取时间范围内的总结
-    fn get_summaries_for_range(&self, start: &str, end: &str, summary_type: &str) -> Result<Vec<Summary>> {
-        self.db.with_connection(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT id, summary_type, date_start, date_end, content,
-                        activity_ids, project_ids, markdown_path, created_at
-                 FROM summaries
-                 WHERE date_start >= ?1 AND date_end <= ?2 AND summary_type = ?3
-                 ORDER BY date_start ASC"
-            )?;
-
-            let summaries = stmt.query_map(
-                rusqlite::params![start, end, summary_type],
-                |row| {
-                    let type_str: String = row.get(1)?;
-                    let activity_ids_json: String = row.get(5)?;
-                    let project_ids_json: Option<String> = row.get(6)?;
-
-                    Ok(Summary {
-                        id: row.get(0)?,
-                        summary_type: match type_str.as_str() {
-                            "weekly" => SummaryType::Weekly,
-                            "monthly" => SummaryType::Monthly,
-                            _ => SummaryType::Daily,
-                        },
-                        date_start: row.get(2)?,
-                        date_end: row.get(3)?,
-                        content: row.get(4)?,
-                        activity_ids: serde_json::from_str(&activity_ids_json).unwrap_or_default(),
-                        project_ids: project_ids_json.and_then(|j| serde_json::from_str(&j).ok()),
-                        markdown_path: row.get(7)?,
-                        created_at: row.get(8)?,
-                    })
-                },
-            )?.collect::<rusqlite::Result<Vec<_>>>()?;
-
-            Ok(summaries)
         })
     }
 

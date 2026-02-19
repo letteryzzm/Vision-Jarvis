@@ -12,7 +12,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use log::info;
-use uuid::Uuid;
 
 use crate::db::Database;
 use crate::db::schema::{Habit, HabitPatternType};
@@ -51,10 +50,12 @@ pub struct HabitDetector {
 #[derive(Debug, Clone)]
 struct ActivityRecord {
     application: String,
+    #[allow(dead_code)]
     activity_type: String,
     start_time: i64,
     end_time: i64,
     hour: u32,
+    #[allow(dead_code)]
     weekday: u32,
 }
 
@@ -342,7 +343,7 @@ impl HabitDetector {
         let existing = self.get_habit_by_id(&habit.id)?;
         let now = Utc::now().timestamp();
 
-        if let Some(existing) = existing {
+        if let Some(_existing) = existing {
             // 更新现有习惯
             self.db.with_connection(|conn| {
                 conn.execute(
