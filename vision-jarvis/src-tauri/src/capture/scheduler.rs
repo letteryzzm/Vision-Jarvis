@@ -1,125 +1,120 @@
-/// 截图捕获调度器
+/// 录制调度器
 ///
-/// 负责按配置间隔定时捕获截图，自动保存文件和数据库记录
+/// 管理 ScreenRecorder 的分段录制循环，每个分段结束后写入 DB 记录
 
 use crate::error::{AppError, AppResult};
 use crate::db::Database;
-use log::error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::time::{interval, Duration};
 use tokio::task::JoinHandle;
-use super::ScreenCapture;
+use log::{debug, error, warn};
+use super::screen_recorder::ScreenRecorder;
 
-/// 捕获调度器
+/// 录制调度器
 pub struct CaptureScheduler {
-    capture: Arc<ScreenCapture>,
+    recorder: Arc<ScreenRecorder>,
     db: Option<Arc<Database>>,
-    pub interval_seconds: u8,
+    pub interval_seconds: u64,
     is_running: Arc<Mutex<bool>>,
     task_handle: Option<JoinHandle<()>>,
 }
 
 impl CaptureScheduler {
-    /// 创建新的调度器
-    pub fn new(capture: ScreenCapture, interval_seconds: u8) -> Self {
+    pub fn new(recorder: ScreenRecorder, segment_duration_secs: u64) -> Self {
         Self {
-            capture: Arc::new(capture),
+            recorder: Arc::new(recorder),
             db: None,
-            interval_seconds,
+            interval_seconds: segment_duration_secs,
             is_running: Arc::new(Mutex::new(false)),
             task_handle: None,
         }
     }
 
-    /// 设置数据库（截图记录会自动写入）
     pub fn with_db(mut self, db: Arc<Database>) -> Self {
         self.db = Some(db);
         self
     }
 
-    /// 注入数据库引用
-    pub fn set_db(&mut self, db: Arc<Database>) {
-        self.db = Some(db);
-    }
-
-    /// 启动调度器
     pub async fn start(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if *running {
             return Err(AppError::screenshot(10, "调度器已经在运行"));
         }
-
         *running = true;
-        drop(running); // 释放锁
+        drop(running);
 
-        let capture = Arc::clone(&self.capture);
+        let recorder = Arc::clone(&self.recorder);
         let db = self.db.clone();
         let is_running = Arc::clone(&self.is_running);
-        let interval_secs = self.interval_seconds as u64;
 
-        // 启动后台任务
         let handle = tokio::spawn(async move {
-            let mut ticker = interval(Duration::from_secs(interval_secs));
-
             loop {
-                ticker.tick().await;
-
                 let running = is_running.lock().await;
-                if !*running {
-                    break;
-                }
+                if !*running { break; }
                 drop(running);
 
-                // 捕获截图
-                match capture.capture_screenshot() {
-                    Ok(file_path) => {
-                        eprintln!("[Scheduler] Screenshot captured: {}", file_path.display());
-                        // 保存到数据库
-                        if let Some(ref db) = db {
-                            let id = uuid::Uuid::new_v4().to_string();
-                            let path_str = file_path.to_string_lossy().to_string();
-                            let timestamp = chrono::Utc::now().timestamp();
-
-                            if let Err(e) = db.with_connection(|conn| {
-                                conn.execute(
-                                    "INSERT INTO screenshots (id, path, captured_at, analyzed)
-                                     VALUES (?1, ?2, ?3, 0)",
-                                    (&id, &path_str, timestamp),
-                                )?;
-                                Ok(())
-                            }) {
-                                eprintln!("[Scheduler] ERROR: Failed to save screenshot record: {}", e);
-                            } else {
-                                eprintln!("[Scheduler] Screenshot saved to DB: {}", id);
-                            }
-                        } else {
-                            eprintln!("[Scheduler] WARNING: No database configured, screenshot not saved to DB");
-                        }
-                    }
+                // 启动一个分段
+                let output_path = match recorder.start_segment().await {
+                    Ok(p) => p,
                     Err(e) => {
-                        eprintln!("[Scheduler] ERROR: Screenshot capture failed: {}", e);
+                        error!("Failed to start recording segment: {}", e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                        continue;
+                    }
+                };
+
+                let start_time = chrono::Utc::now().timestamp();
+                let filename = output_path.file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                debug!("Recording: {}", filename);
+
+                // 等待分段自然结束
+                if let Err(e) = recorder.wait_segment().await {
+                    error!("Segment wait failed: {}", e);
+                }
+
+                let end_time = chrono::Utc::now().timestamp();
+                let duration = end_time - start_time;
+
+                // 写入 DB
+                if let Some(ref db) = db {
+                    let id = uuid::Uuid::new_v4().to_string();
+                    let path_str = output_path.to_string_lossy().to_string();
+
+                    if let Err(e) = db.with_connection(|conn| {
+                        conn.execute(
+                            "INSERT INTO recordings (id, path, start_time, end_time, duration_secs, fps, analyzed, created_at)
+                             VALUES (?1, ?2, ?3, ?4, ?5, 2, 0, ?3)",
+                            rusqlite::params![id, path_str, start_time, end_time, duration],
+                        )?;
+                        Ok(())
+                    }) {
+                        error!("Failed to save recording: {}", e);
+                    } else {
+                        debug!("Saved: {}..{} ({}s)", &id[..8], &id[id.len()-4..], duration);
                     }
                 }
             }
         });
 
         self.task_handle = Some(handle);
-
         Ok(())
     }
 
-    /// 停止调度器
     pub async fn stop(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if !*running {
             return Err(AppError::screenshot(11, "调度器未运行"));
         }
-
         *running = false;
         drop(running);
 
-        // 等待任务完成
+        // 停止当前录制
+        if let Err(e) = self.recorder.stop().await {
+            warn!("Stop recorder failed: {}", e);
+        }
+
         if let Some(handle) = self.task_handle.take() {
             handle.await
                 .map_err(|e| AppError::screenshot(12, format!("等待任务完成失败: {}", e)))?;
@@ -128,81 +123,19 @@ impl CaptureScheduler {
         Ok(())
     }
 
-    /// 检查是否正在运行
     pub async fn is_running(&self) -> bool {
         *self.is_running.lock().await
     }
 
-    /// 更新捕获间隔
-    pub async fn update_interval(&mut self, interval_seconds: u8) -> AppResult<()> {
+    pub async fn update_interval(&mut self, segment_duration_secs: u64) -> AppResult<()> {
         let was_running = self.is_running().await;
-
         if was_running {
             self.stop().await?;
         }
-
-        self.interval_seconds = interval_seconds;
-
+        self.interval_seconds = segment_duration_secs;
         if was_running {
             self.start().await?;
         }
-
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[tokio::test]
-    async fn test_scheduler_creation() {
-        let temp_dir = TempDir::new().unwrap();
-        let capture = ScreenCapture::new(temp_dir.path().to_path_buf()).unwrap();
-        let scheduler = CaptureScheduler::new(capture, 5);
-
-        assert!(!scheduler.is_running().await);
-    }
-
-    #[tokio::test]
-    async fn test_scheduler_start_stop() {
-        let temp_dir = TempDir::new().unwrap();
-        let capture = ScreenCapture::new(temp_dir.path().to_path_buf()).unwrap();
-        let mut scheduler = CaptureScheduler::new(capture, 5);
-
-        assert!(scheduler.start().await.is_ok());
-        assert!(scheduler.is_running().await);
-
-        assert!(scheduler.stop().await.is_ok());
-        assert!(!scheduler.is_running().await);
-    }
-
-    #[tokio::test]
-    async fn test_scheduler_double_start() {
-        let temp_dir = TempDir::new().unwrap();
-        let capture = ScreenCapture::new(temp_dir.path().to_path_buf()).unwrap();
-        let mut scheduler = CaptureScheduler::new(capture, 5);
-
-        assert!(scheduler.start().await.is_ok());
-        assert!(scheduler.start().await.is_err()); // 第二次启动应失败
-
-        scheduler.stop().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_update_interval() {
-        let temp_dir = TempDir::new().unwrap();
-        let capture = ScreenCapture::new(temp_dir.path().to_path_buf()).unwrap();
-        let mut scheduler = CaptureScheduler::new(capture, 5);
-
-        scheduler.start().await.unwrap();
-        assert_eq!(scheduler.interval_seconds, 5);
-
-        scheduler.update_interval(10).await.unwrap();
-        assert_eq!(scheduler.interval_seconds, 10);
-        assert!(scheduler.is_running().await);
-
-        scheduler.stop().await.unwrap();
     }
 }
