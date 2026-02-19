@@ -132,12 +132,11 @@ impl PipelineScheduler {
 
     /// 启动管道调度
     pub fn start(&self) -> JoinHandle<()> {
-        let analysis_interval = Duration::from_secs(300);     // 5分钟 - 截图分析
+        let analysis_interval = Duration::from_secs(90);      // 90秒 - 录制分析（分段60秒）
         let grouping_interval = Duration::from_secs(1800);    // 30分钟 - 分组活动
         let indexing_interval = Duration::from_secs(600);     // 10分钟 - 同步索引
         let habit_interval = Duration::from_secs(86400);      // 24小时 - 习惯检测
         let summary_check_interval = Duration::from_secs(600); // 10分钟 - 检查是否到日总结时间
-        let compression_interval = Duration::from_secs(1800); // 30分钟 - 视频压缩
 
         let grouper = Arc::clone(&self.grouper);
         let markdown_gen = Arc::clone(&self.markdown_gen);
@@ -146,7 +145,6 @@ impl PipelineScheduler {
         let habit_detector = Arc::clone(&self.habit_detector);
         let project_extractor = Arc::clone(&self.project_extractor);
         let summary_generator = Arc::clone(&self.summary_generator);
-        let storage_root = self.storage_root.clone();
 
         tokio::spawn(async move {
             let mut analysis_tick = interval(analysis_interval);
@@ -154,7 +152,6 @@ impl PipelineScheduler {
             let mut indexing_tick = interval(indexing_interval);
             let mut habit_tick = interval(habit_interval);
             let mut summary_tick = interval(summary_check_interval);
-            let mut compression_tick = interval(compression_interval);
             // 记录上次生成日总结的日期，避免重复生成
             let mut last_summary_date: Option<String> = None;
 
@@ -163,14 +160,14 @@ impl PipelineScheduler {
                     _ = analysis_tick.tick() => {
                         let analyzer = screenshot_analyzer.read().await;
                         if let Some(ref analyzer) = *analyzer {
-                            match analyzer.analyze_pending().await {
+                            match analyzer.analyze_pending_recordings().await {
                                 Ok(result) => {
                                     if result.analyzed > 0 {
-                                        info!("Screenshot analysis: {} analyzed, {} skipped, {} failed",
+                                        info!("Recording analysis: {} analyzed, {} skipped, {} failed",
                                             result.analyzed, result.skipped, result.failed);
                                     }
                                 }
-                                Err(e) => error!("Screenshot analysis failed: {}", e),
+                                Err(e) => error!("Recording analysis failed: {}", e),
                             }
                         }
                     }
@@ -218,23 +215,6 @@ impl PipelineScheduler {
                             }
                         }
                     }
-                    _ = compression_tick.tick() => {
-                        // 压缩已完成时段的截图为 mp4
-                        let root = storage_root.clone();
-                        let result = tokio::task::spawn_blocking(move || {
-                            crate::capture::video_compressor::compress_completed_periods(&root)
-                        }).await;
-
-                        match result {
-                            Ok(Ok(videos)) => {
-                                if !videos.is_empty() {
-                                    info!("[Pipeline] Compressed {} period(s) into mp4 videos", videos.len());
-                                }
-                            }
-                            Ok(Err(e)) => error!("[Pipeline] Video compression failed: {}", e),
-                            Err(e) => error!("[Pipeline] Video compression task panicked: {}", e),
-                        }
-                    }
                 }
             }
         })
@@ -247,16 +227,16 @@ impl PipelineScheduler {
     ) -> Result<()> {
         info!("Starting activity grouping...");
 
-        let screenshots = grouper.get_ungrouped_screenshots()?;
+        let recordings = grouper.get_ungrouped_recordings()?;
 
-        if screenshots.is_empty() {
-            info!("No ungrouped screenshots");
+        if recordings.is_empty() {
+            info!("No ungrouped recordings");
             return Ok(());
         }
 
-        info!("Found {} ungrouped screenshots", screenshots.len());
+        info!("Found {} ungrouped recordings", recordings.len());
 
-        let activities = grouper.group_screenshots(&screenshots)?;
+        let activities = grouper.group_recordings(&recordings)?;
 
         if activities.is_empty() {
             info!("No activities generated (may not meet minimum criteria)");
