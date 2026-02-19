@@ -6,6 +6,9 @@ use chrono::{DateTime, Utc, Timelike};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use super::{Notification, NotificationType, NotificationPriority};
+use super::smart::proactive::{
+    HabitReminderRule, ContextSwitchRule, SmartBreakRule, ProjectProgressRule,
+};
 use crate::settings::AppSettings;
 
 /// 通知规则 trait
@@ -31,6 +34,14 @@ pub struct RuleContext {
     pub continuous_work_minutes: i64,
     /// 屏幕无变化时长（分钟）
     pub inactive_minutes: i64,
+    /// V3: 当前小时匹配的习惯列表 (pattern_name, confidence)
+    pub matching_habits: Vec<(String, f32)>,
+    /// V3: 最近10分钟内的应用切换次数
+    pub recent_app_switches: usize,
+    /// V3: 最近活跃项目距今天数（None=无项目）
+    pub project_inactive_days: Option<i64>,
+    /// V3: 最近活跃项目名称
+    pub inactive_project_name: Option<String>,
 }
 
 /// 冷却追踪器
@@ -317,6 +328,12 @@ impl RuleEngine {
             rules.push(Box::new(ScreenInactivityRule::from_settings(settings)));
         }
 
+        // V3: 主动建议规则（始终启用，由规则自身判断是否触发）
+        rules.push(Box::new(HabitReminderRule));
+        rules.push(Box::new(ContextSwitchRule::default()));
+        rules.push(Box::new(SmartBreakRule::default()));
+        rules.push(Box::new(ProjectProgressRule::default()));
+
         Self { rules }
     }
 
@@ -392,6 +409,10 @@ mod tests {
             local_now: Local::now(),
             continuous_work_minutes: 0,
             inactive_minutes: 0,
+            matching_habits: vec![],
+            recent_app_switches: 0,
+            project_inactive_days: None,
+            inactive_project_name: None,
         }
     }
 
@@ -478,7 +499,7 @@ mod tests {
         };
 
         let engine = RuleEngine::from_settings(&settings);
-        assert_eq!(engine.rules.len(), 3);
+        assert_eq!(engine.rules.len(), 7); // 3 fixed + 4 proactive
     }
 
     #[test]

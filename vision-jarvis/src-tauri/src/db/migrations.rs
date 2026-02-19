@@ -34,6 +34,18 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         tx.commit()?;
     }
 
+    // V3: 主动式AI记忆系统
+    if version < 3 {
+        let tx = conn.unchecked_transaction()?;
+        create_screenshot_analyses_table(&tx)?;
+        create_projects_table(&tx)?;
+        create_habits_table(&tx)?;
+        create_summaries_table(&tx)?;
+        create_proactive_suggestions_table(&tx)?;
+        set_schema_version(&tx, 3)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -312,6 +324,186 @@ fn create_embedding_cache_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+// ============================================================================
+// V3 Tables: Proactive AI Memory System
+// ============================================================================
+
+/// 创建 screenshot_analyses 表 - AI截图理解缓存
+fn create_screenshot_analyses_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS screenshot_analyses (
+            screenshot_id TEXT PRIMARY KEY,
+            application TEXT NOT NULL,
+            activity_type TEXT NOT NULL,
+            activity_description TEXT NOT NULL,
+            key_elements TEXT NOT NULL DEFAULT '[]',
+            ocr_text TEXT,
+            context_tags TEXT NOT NULL DEFAULT '[]',
+            productivity_score INTEGER DEFAULT 5,
+            analysis_json TEXT NOT NULL,
+            analyzed_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (screenshot_id) REFERENCES screenshots(id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sa_application
+         ON screenshot_analyses(application)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sa_activity_type
+         ON screenshot_analyses(activity_type)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sa_analyzed_at
+         ON screenshot_analyses(analyzed_at DESC)",
+        [],
+    )?;
+
+    Ok(())
+}
+
+/// 创建 projects 表 - 项目追踪
+fn create_projects_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            start_date INTEGER NOT NULL,
+            last_activity_date INTEGER NOT NULL,
+            activity_count INTEGER DEFAULT 0,
+            tags TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'active',
+            markdown_path TEXT NOT NULL,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_projects_status
+         ON projects(status)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_projects_last_activity
+         ON projects(last_activity_date DESC)",
+        [],
+    )?;
+
+    Ok(())
+}
+
+/// 创建 habits 表 - 行为模式追踪
+fn create_habits_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS habits (
+            id TEXT PRIMARY KEY,
+            pattern_name TEXT NOT NULL,
+            pattern_type TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            frequency TEXT NOT NULL DEFAULT 'daily',
+            trigger_conditions TEXT,
+            typical_time TEXT,
+            last_occurrence INTEGER,
+            occurrence_count INTEGER DEFAULT 0,
+            markdown_path TEXT NOT NULL,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_habits_pattern_type
+         ON habits(pattern_type)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_habits_confidence
+         ON habits(confidence DESC)",
+        [],
+    )?;
+
+    Ok(())
+}
+
+/// 创建 summaries 表 - 聚合总结
+fn create_summaries_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS summaries (
+            id TEXT PRIMARY KEY,
+            summary_type TEXT NOT NULL,
+            date_start TEXT NOT NULL,
+            date_end TEXT NOT NULL,
+            content TEXT NOT NULL,
+            activity_ids TEXT NOT NULL DEFAULT '[]',
+            project_ids TEXT,
+            markdown_path TEXT NOT NULL,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_summaries_type
+         ON summaries(summary_type)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_summaries_date
+         ON summaries(date_start, date_end)",
+        [],
+    )?;
+
+    Ok(())
+}
+
+/// 创建 proactive_suggestions 表 - 主动建议
+fn create_proactive_suggestions_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS proactive_suggestions (
+            id TEXT PRIMARY KEY,
+            suggestion_type TEXT NOT NULL,
+            trigger_context TEXT NOT NULL,
+            message TEXT NOT NULL,
+            priority INTEGER DEFAULT 0,
+            delivered INTEGER DEFAULT 0,
+            delivered_at INTEGER,
+            user_action TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ps_type
+         ON proactive_suggestions(suggestion_type)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ps_delivered
+         ON proactive_suggestions(delivered)",
+        [],
+    )?;
+
+    Ok(())
+}
+
+// ============================================================================
+// V2 Helpers
+// ============================================================================
+
 /// 为 screenshots 表添加 activity_id 列
 fn add_activity_id_to_screenshots(conn: &Connection) -> Result<()> {
     // 检查列是否已存在
@@ -368,9 +560,16 @@ mod tests {
         assert!(tables.contains(&"memory_chunks".to_string()));
         assert!(tables.contains(&"embedding_cache".to_string()));
 
+        // 验证V3表创建
+        assert!(tables.contains(&"screenshot_analyses".to_string()));
+        assert!(tables.contains(&"projects".to_string()));
+        assert!(tables.contains(&"habits".to_string()));
+        assert!(tables.contains(&"summaries".to_string()));
+        assert!(tables.contains(&"proactive_suggestions".to_string()));
+
         // 验证版本号
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     #[test]
@@ -435,7 +634,7 @@ mod tests {
         assert!(run_migrations(&conn).is_ok());
 
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     #[test]

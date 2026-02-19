@@ -5,13 +5,23 @@
 use crate::error::{AppError, AppResult};
 use std::path::{Path, PathBuf};
 use xcap::Monitor;
-use chrono::Utc;
+use chrono::{Utc, Timelike, Datelike};
 use uuid::Uuid;
 use image::{DynamicImage, ImageFormat, ImageEncoder};
 use std::io::Cursor;
 
 pub mod scheduler;
 pub mod storage;
+pub mod video_compressor;
+
+/// 根据小时返回时段目录名
+fn get_time_period(hour: u32) -> &'static str {
+    match hour {
+        0..=11 => "0_00-12_00",
+        12..=17 => "12_00-18_00",
+        _ => "18_00-24_00",
+    }
+}
 
 /// 截图捕获器
 #[derive(Clone)]
@@ -68,11 +78,20 @@ impl ScreenCapture {
         // 压缩图像
         let compressed = self.compress_image(&dynamic_image)?;
 
-        // 生成文件名
-        let timestamp = Utc::now().timestamp();
+        // 生成日期/时段目录路径
+        let now = Utc::now();
+        let date_dir = format!("{}", now.format("%Y%m%d"));
+        let period_dir = get_time_period(now.hour());
+        let shots_dir = self.storage_path.join("shots").join(&date_dir).join(period_dir);
+
+        // 确���目录存在
+        std::fs::create_dir_all(&shots_dir)
+            .map_err(|e| AppError::screenshot(1, format!("创建截图目录失败: {}", e)))?;
+
+        // 生成文件名: HH-MM-SS_{uuid}.jpg
         let id = Uuid::new_v4();
-        let filename = format!("{}_{}.jpg", timestamp, id);
-        let filepath = self.storage_path.join(filename);
+        let filename = format!("{}_{}.jpg", now.format("%H-%M-%S"), id);
+        let filepath = shots_dir.join(filename);
 
         // 保存压缩后的图片
         std::fs::write(&filepath, compressed)

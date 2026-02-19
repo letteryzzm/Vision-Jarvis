@@ -12,6 +12,24 @@ pub struct StorageManager {
     limit_bytes: u64,
 }
 
+/// 递归计算目录大小
+fn dir_size(path: &Path) -> Result<u64> {
+    let mut total = 0u64;
+    if !path.exists() {
+        return Ok(0);
+    }
+    for entry in fs::read_dir(path).context("读取目录失败")? {
+        let entry = entry.context("读取目录项失败")?;
+        let metadata = entry.metadata().context("读取元数据失败")?;
+        if metadata.is_dir() {
+            total += dir_size(&entry.path())?;
+        } else {
+            total += metadata.len();
+        }
+    }
+    Ok(total)
+}
+
 impl StorageManager {
     /// 创建新的存储管理器
     pub fn new(storage_path: PathBuf, limit_mb: u64) -> Self {
@@ -21,26 +39,14 @@ impl StorageManager {
         }
     }
 
-    /// 获取当前存储使用量（字节）
+    /// shots 目录路径
+    fn shots_path(&self) -> PathBuf {
+        self.storage_path.join("shots")
+    }
+
+    /// 获取当前存储使用量（字节）- 递归计算 shots/ 下所有文件
     pub fn get_current_usage(&self) -> Result<u64> {
-        let mut total_size = 0u64;
-
-        if !self.storage_path.exists() {
-            return Ok(0);
-        }
-
-        for entry in fs::read_dir(&self.storage_path)
-            .context("读取存储目录失败")? {
-            let entry = entry.context("读取目录项失败")?;
-            let metadata = entry.metadata()
-                .context("读取文件元数据失败")?;
-
-            if metadata.is_file() {
-                total_size += metadata.len();
-            }
-        }
-
-        Ok(total_size)
+        dir_size(&self.shots_path())
     }
 
     /// 检查是否超出存储限制
@@ -49,53 +55,88 @@ impl StorageManager {
         Ok(usage > self.limit_bytes)
     }
 
-    /// 清理旧截图直到低于限制
+    /// 清理旧截图直到低于���制
+    /// 按日期目录从旧到新删除
     pub fn cleanup_old_screenshots(&self) -> Result<u64> {
-        let mut files_info: Vec<(PathBuf, u64, i64)> = Vec::new();
-
-        // 收集所有文件信息
-        for entry in fs::read_dir(&self.storage_path)
-            .context("读取存储目录失败")? {
-            let entry = entry.context("读取目录项失败")?;
-            let path = entry.path();
-            let metadata = entry.metadata()
-                .context("读取文件元数据失败")?;
-
-            if metadata.is_file() && path.extension().map_or(false, |ext| ext == "png") {
-                // 从文件名提取时间戳
-                if let Some(filename) = path.file_stem() {
-                    if let Some(timestamp_str) = filename.to_str()
-                        .and_then(|s| s.split('_').next()) {
-                        if let Ok(timestamp) = timestamp_str.parse::<i64>() {
-                            files_info.push((path, metadata.len(), timestamp));
-                        }
-                    }
-                }
-            }
+        let shots_dir = self.shots_path();
+        if !shots_dir.exists() {
+            return Ok(0);
         }
 
-        // 按时间戳排序（旧的在前）
-        files_info.sort_by_key(|(_, _, timestamp)| *timestamp);
+        // 收集日期目录并排序（旧的在前）
+        let mut date_dirs: Vec<PathBuf> = Vec::new();
+        for entry in fs::read_dir(&shots_dir).context("读取 shots 目录失败")? {
+            let entry = entry?;
+            if entry.metadata()?.is_dir() {
+                date_dirs.push(entry.path());
+            }
+        }
+        date_dirs.sort();
 
         let mut current_usage = self.get_current_usage()?;
+        let target = (self.limit_bytes as f64 * 0.8) as u64;
         let mut deleted_count = 0u64;
 
-        // 删除旧文件直到低于限制的80%
-        let target = (self.limit_bytes as f64 * 0.8) as u64;
-
-        for (path, size, _) in files_info {
+        for date_dir in date_dirs {
             if current_usage <= target {
                 break;
             }
 
-            fs::remove_file(&path)
-                .context(format!("删除文件失败: {:?}", path))?;
+            // 收集该日期目录下所有文件
+            let mut files: Vec<(PathBuf, u64)> = Vec::new();
+            Self::collect_files_recursive(&date_dir, &mut files)?;
 
-            current_usage -= size;
-            deleted_count += 1;
+            for (path, size) in files {
+                if current_usage <= target {
+                    break;
+                }
+                fs::remove_file(&path)
+                    .context(format!("删除文件失败: {:?}", path))?;
+                current_usage -= size;
+                deleted_count += 1;
+            }
+
+            // 清理空目录
+            Self::remove_empty_dirs(&date_dir)?;
         }
 
         Ok(deleted_count)
+    }
+
+    /// 递归收集目录下所有文件
+    fn collect_files_recursive(dir: &Path, files: &mut Vec<(PathBuf, u64)>) -> Result<()> {
+        if !dir.exists() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let metadata = entry.metadata()?;
+            if metadata.is_dir() {
+                Self::collect_files_recursive(&path, files)?;
+            } else {
+                files.push((path, metadata.len()));
+            }
+        }
+        Ok(())
+    }
+
+    /// 递归删除空目录
+    fn remove_empty_dirs(dir: &Path) -> Result<()> {
+        if !dir.is_dir() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.metadata()?.is_dir() {
+                Self::remove_empty_dirs(&entry.path())?;
+            }
+        }
+        // 如果目录为空则删除
+        if fs::read_dir(dir)?.next().is_none() {
+            fs::remove_dir(dir)?;
+        }
+        Ok(())
     }
 
     /// 获取存储限制（字节）
@@ -134,64 +175,66 @@ mod tests {
     }
 
     #[test]
-    fn test_get_current_usage_with_files() {
+    fn test_get_current_usage_with_nested_files() {
         let temp_dir = TempDir::new().unwrap();
         let manager = StorageManager::new(temp_dir.path().to_path_buf(), 100);
 
-        // 创建测试文件
-        let file1 = temp_dir.path().join("test1.png");
-        let mut f1 = fs::File::create(&file1).unwrap();
-        f1.write_all(&vec![0u8; 1024]).unwrap(); // 1KB
+        // 创建 shots/20231027/0_00-12_00/ 结构
+        let period_dir = temp_dir.path().join("shots").join("20231027").join("0_00-12_00");
+        fs::create_dir_all(&period_dir).unwrap();
 
-        let file2 = temp_dir.path().join("test2.png");
+        let file1 = period_dir.join("10-00-01_test.jpg");
+        let mut f1 = fs::File::create(&file1).unwrap();
+        f1.write_all(&vec![0u8; 1024]).unwrap();
+
+        let file2 = period_dir.join("11-00-01_test.jpg");
         let mut f2 = fs::File::create(&file2).unwrap();
-        f2.write_all(&vec![0u8; 2048]).unwrap(); // 2KB
+        f2.write_all(&vec![0u8; 2048]).unwrap();
 
         let usage = manager.get_current_usage().unwrap();
-        assert_eq!(usage, 3072); // 3KB
+        assert_eq!(usage, 3072);
     }
 
     #[test]
     fn test_is_over_limit() {
         let temp_dir = TempDir::new().unwrap();
-        let manager = StorageManager::new(temp_dir.path().to_path_buf(), 1); // 1MB 限制
+        let manager = StorageManager::new(temp_dir.path().to_path_buf(), 1); // 1MB
 
-        // 创建小文件
-        let file = temp_dir.path().join("small.png");
+        let period_dir = temp_dir.path().join("shots").join("20231027").join("0_00-12_00");
+        fs::create_dir_all(&period_dir).unwrap();
+
+        // 小文件
+        let file = period_dir.join("small.jpg");
         let mut f = fs::File::create(&file).unwrap();
-        f.write_all(&vec![0u8; 1024]).unwrap(); // 1KB
-
+        f.write_all(&vec![0u8; 1024]).unwrap();
         assert!(!manager.is_over_limit().unwrap());
 
-        // 创建大文件超出限制
-        let file2 = temp_dir.path().join("large.png");
+        // 大文件超出限制
+        let file2 = period_dir.join("large.jpg");
         let mut f2 = fs::File::create(&file2).unwrap();
-        f2.write_all(&vec![0u8; 2 * 1024 * 1024]).unwrap(); // 2MB
-
+        f2.write_all(&vec![0u8; 2 * 1024 * 1024]).unwrap();
         assert!(manager.is_over_limit().unwrap());
     }
 
     #[test]
     fn test_cleanup_old_screenshots() {
         let temp_dir = TempDir::new().unwrap();
-        let manager = StorageManager::new(temp_dir.path().to_path_buf(), 1); // 1MB 限制
+        let manager = StorageManager::new(temp_dir.path().to_path_buf(), 1); // 1MB
 
-        // 创建多个带时间戳的文件
-        for i in 0..5 {
-            let filename = format!("{}_{}.png", 1000000 + i, uuid::Uuid::new_v4());
-            let path = temp_dir.path().join(filename);
+        // 创建多个日期目录的文件
+        for day in 27..32 {
+            let period_dir = temp_dir.path().join("shots").join(format!("202310{}", day)).join("0_00-12_00");
+            fs::create_dir_all(&period_dir).unwrap();
+            let path = period_dir.join(format!("10-00-01_{}.jpg", uuid::Uuid::new_v4()));
             let mut f = fs::File::create(&path).unwrap();
-            f.write_all(&vec![0u8; 500 * 1024]).unwrap(); // 每个 500KB
+            f.write_all(&vec![0u8; 500 * 1024]).unwrap();
         }
 
-        // 总共 2.5MB，超出 1MB 限制
         assert!(manager.is_over_limit().unwrap());
 
-        // 执行清理
         let deleted = manager.cleanup_old_screenshots().unwrap();
         assert!(deleted > 0);
 
-        // 清理后应低于限制的 80%
         let usage = manager.get_current_usage().unwrap();
         assert!(usage <= (manager.get_limit_bytes() as f64 * 0.8) as u64);
     }

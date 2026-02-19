@@ -22,6 +22,14 @@ pub enum NotificationType {
     SedentaryReminder,
     /// 屏幕无变化提醒（智能提醒）
     ScreenInactivityReminder,
+    /// V3: 习惯提醒
+    HabitReminder,
+    /// V3: 上下文切换警告
+    ContextSwitchWarning,
+    /// V3: 休息提醒（基于行为分析）
+    SmartBreakReminder,
+    /// V3: 项目进度提醒
+    ProjectProgressReminder,
     /// 自定义通知
     Custom,
 }

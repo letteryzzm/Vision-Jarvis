@@ -50,6 +50,10 @@ pub struct AnalyzedScreenshot {
     pub path: String,
     pub captured_at: i64,
     pub analysis: AnalysisResult,
+    /// V3: 来自 screenshot_analyses 表的增强数据
+    pub context_tags: Vec<String>,
+    pub activity_type: Option<String>,
+    pub key_elements: Vec<String>,
 }
 
 /// 临时活动组(用于构建过程)
@@ -61,6 +65,12 @@ struct ActivityGroup {
     category: ActivityCategory,
     start_time: i64,
     last_time: i64,
+    /// V3: 聚合的上下文标签
+    merged_tags: Vec<String>,
+    /// V3: 聚合的关键元素
+    merged_key_elements: Vec<String>,
+    /// V3: 活动类型（work/entertainment/communication/other）
+    activity_type: Option<String>,
 }
 
 impl ActivityGroup {
@@ -69,6 +79,9 @@ impl ActivityGroup {
         let activity = screenshot.analysis.activity.clone();
         let category = screenshot.analysis.category.clone();
         let timestamp = screenshot.captured_at;
+        let merged_tags = screenshot.context_tags.clone();
+        let merged_key_elements = screenshot.key_elements.clone();
+        let activity_type = screenshot.activity_type.clone();
 
         Self {
             screenshots: vec![screenshot],
@@ -77,11 +90,26 @@ impl ActivityGroup {
             category,
             start_time: timestamp,
             last_time: timestamp,
+            merged_tags,
+            merged_key_elements,
+            activity_type,
         }
     }
 
     fn add(&mut self, screenshot: AnalyzedScreenshot) {
         self.last_time = screenshot.captured_at;
+        // 合并 context_tags（去重）
+        for tag in &screenshot.context_tags {
+            if !self.merged_tags.contains(tag) {
+                self.merged_tags.push(tag.clone());
+            }
+        }
+        // 合并 key_elements（去重）
+        for elem in &screenshot.key_elements {
+            if !self.merged_key_elements.contains(elem) {
+                self.merged_key_elements.push(elem.clone());
+            }
+        }
         self.screenshots.push(screenshot);
     }
 
@@ -98,10 +126,18 @@ impl ActivityGroup {
     fn finalize(&self, markdown_path: String) -> ActivitySession {
         let duration_minutes = (self.duration_seconds() / 60).max(1);
 
-        // 生成标题(后续可由AI生成更好的标题)
-        let title = format!("{}中{}", self.application, self.activity);
+        // V3: 利用 key_elements 生成更好的标题
+        let title = if !self.merged_key_elements.is_empty() {
+            let elements_str = self.merged_key_elements.iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("、");
+            format!("{}中{} ({})", self.application, self.activity, elements_str)
+        } else {
+            format!("{}中{}", self.application, self.activity)
+        };
 
-        // 提取截图ID和分析摘要
         let screenshot_ids: Vec<String> = self.screenshots.iter()
             .map(|s| s.id.clone())
             .collect();
@@ -115,10 +151,15 @@ impl ActivityGroup {
             })
             .collect();
 
-        // 提取标签(基于活动和应用)
+        // V3: 合并 context_tags 到 tags
         let mut tags = Vec::new();
         tags.push(self.application.clone());
         tags.push(self.activity.clone());
+        for tag in &self.merged_tags {
+            if !tags.contains(tag) {
+                tags.push(tag.clone());
+            }
+        }
 
         ActivitySession {
             id: generate_activity_id(self.start_time),
@@ -132,7 +173,7 @@ impl ActivityGroup {
             screenshot_analyses,
             tags,
             markdown_path,
-            summary: None, // 将由MarkdownGenerator生成AI总结
+            summary: None,
             indexed: false,
             created_at: Utc::now().timestamp(),
         }
@@ -144,16 +185,18 @@ impl ActivityGrouper {
         Self { db, config }
     }
 
-    /// 获取未分组的已分析截图
+    /// 获取未分组的已分析截图（V3: LEFT JOIN screenshot_analyses 获取增强数据）
     pub fn get_ungrouped_screenshots(&self) -> Result<Vec<AnalyzedScreenshot>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, path, captured_at, analysis_result
-                 FROM screenshots
-                 WHERE analyzed = 1
-                   AND analysis_result IS NOT NULL
-                   AND activity_id IS NULL
-                 ORDER BY captured_at ASC"
+                "SELECT s.id, s.path, s.captured_at, s.analysis_result,
+                        sa.context_tags, sa.activity_type, sa.key_elements
+                 FROM screenshots s
+                 LEFT JOIN screenshot_analyses sa ON s.id = sa.screenshot_id
+                 WHERE s.analyzed = 1
+                   AND s.analysis_result IS NOT NULL
+                   AND s.activity_id IS NULL
+                 ORDER BY s.captured_at ASC"
             )?;
 
             let screenshots = stmt.query_map([], |row| {
@@ -161,8 +204,10 @@ impl ActivityGrouper {
                 let path: String = row.get(1)?;
                 let captured_at: i64 = row.get(2)?;
                 let analysis_json: String = row.get(3)?;
+                let context_tags_json: Option<String> = row.get(4)?;
+                let activity_type: Option<String> = row.get(5)?;
+                let key_elements_json: Option<String> = row.get(6)?;
 
-                // 解析analysis_result JSON
                 let analysis: AnalysisResult = match serde_json::from_str(&analysis_json) {
                     Ok(a) => a,
                     Err(e) => {
@@ -170,7 +215,6 @@ impl ActivityGrouper {
                             "Skipping screenshot {} - failed to parse analysis_result: {}",
                             id, e
                         );
-                        // 返回一个标记对象，后续过滤掉
                         AnalysisResult {
                             activity: String::new(),
                             application: String::new(),
@@ -180,15 +224,25 @@ impl ActivityGrouper {
                     }
                 };
 
+                // 解析 V3 JSON 数组字段
+                let context_tags: Vec<String> = context_tags_json
+                    .and_then(|j| serde_json::from_str(&j).ok())
+                    .unwrap_or_default();
+                let key_elements: Vec<String> = key_elements_json
+                    .and_then(|j| serde_json::from_str(&j).ok())
+                    .unwrap_or_default();
+
                 Ok(AnalyzedScreenshot {
                     id,
                     path,
                     captured_at,
                     analysis,
+                    context_tags,
+                    activity_type,
+                    key_elements,
                 })
             })?.collect::<rusqlite::Result<Vec<_>>>()?;
 
-            // 过滤掉解析失败的截图（activity为空）
             let screenshots: Vec<_> = screenshots.into_iter()
                 .filter(|s| !s.analysis.activity.is_empty())
                 .collect();
@@ -215,10 +269,23 @@ impl ActivityGrouper {
                     || activities_are_related(&group.activity, &screenshot.analysis.activity);
                 let current_duration = screenshot.captured_at - group.start_time;
 
+                // V3: activity_type 不同则不合并（如 work vs entertainment）
+                let activity_type_compatible = match (&group.activity_type, &screenshot.activity_type) {
+                    (Some(a), Some(b)) => a == b,
+                    _ => true, // 缺少类型信息时不阻止合并
+                };
+
+                // V3: context_tags 重叠度检查（有共同标签更容易合并）
+                let tags_overlap = context_tags_overlap(&group.merged_tags, &screenshot.context_tags);
+                let has_tag_affinity = tags_overlap > 0;
+
                 // 判断是否应该合并到当前组
+                // V3: 同类型 + (同活动 或 标签亲和) 即可合并
+                let activity_match = is_same_activity || (has_tag_affinity && is_same_app);
                 let should_merge = time_gap <= self.config.max_gap_seconds
                     && is_same_app
-                    && is_same_activity
+                    && activity_match
+                    && activity_type_compatible
                     && current_duration <= self.config.max_duration_seconds;
 
                 if should_merge {
@@ -299,6 +366,11 @@ impl ActivityGrouper {
     }
 }
 
+/// V3: 计算两组 context_tags 的重叠数量
+fn context_tags_overlap(a: &[String], b: &[String]) -> usize {
+    a.iter().filter(|tag| b.contains(tag)).count()
+}
+
 /// 判断两个活动是否相关(可以合并)
 fn activities_are_related(a: &str, b: &str) -> bool {
     // V1: 简单的前缀匹配
@@ -351,6 +423,18 @@ mod tests {
         app: &str,
         activity: &str,
     ) -> AnalyzedScreenshot {
+        create_test_screenshot_v3(id, timestamp, app, activity, vec![], None, vec![])
+    }
+
+    fn create_test_screenshot_v3(
+        id: &str,
+        timestamp: i64,
+        app: &str,
+        activity: &str,
+        context_tags: Vec<&str>,
+        activity_type: Option<&str>,
+        key_elements: Vec<&str>,
+    ) -> AnalyzedScreenshot {
         AnalyzedScreenshot {
             id: id.to_string(),
             path: format!("/path/to/{}.png", id),
@@ -361,6 +445,9 @@ mod tests {
                 description: "test".to_string(),
                 category: ActivityCategory::Work,
             },
+            context_tags: context_tags.into_iter().map(String::from).collect(),
+            activity_type: activity_type.map(String::from),
+            key_elements: key_elements.into_iter().map(String::from).collect(),
         }
     }
 
@@ -464,5 +551,64 @@ mod tests {
         assert_eq!(groups.len(), 2); // 应该被拆分为两组
         assert!(groups[0].screenshot_ids.len() >= 2); // 第一组至少2张
         assert!(groups[1].screenshot_ids.len() >= 2); // 第二组至少2张
+    }
+
+    #[test]
+    fn test_context_tags_overlap() {
+        assert_eq!(context_tags_overlap(&[], &[]), 0);
+        let a = vec!["rust".to_string(), "coding".to_string()];
+        let b = vec!["coding".to_string(), "debug".to_string()];
+        assert_eq!(context_tags_overlap(&a, &b), 1);
+    }
+
+    #[test]
+    fn test_activity_type_incompatible_splits() {
+        let config = GroupingConfig::default();
+        let db = Arc::new(Database::open_in_memory().unwrap());
+        let grouper = ActivityGrouper::new(db, config);
+
+        // 同应用同活动，但 activity_type 不同 → 应拆分
+        let screenshots = vec![
+            create_test_screenshot_v3("s1", 1000, "Chrome", "浏览", vec![], Some("work"), vec![]),
+            create_test_screenshot_v3("s2", 1100, "Chrome", "浏览", vec![], Some("work"), vec![]),
+            create_test_screenshot_v3("s3", 1200, "Chrome", "浏览", vec![], Some("entertainment"), vec![]),
+            create_test_screenshot_v3("s4", 1300, "Chrome", "浏览", vec![], Some("entertainment"), vec![]),
+        ];
+
+        let groups = grouper.group_screenshots(&screenshots).unwrap();
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn test_tag_affinity_merges_different_activities() {
+        let config = GroupingConfig::default();
+        let db = Arc::new(Database::open_in_memory().unwrap());
+        let grouper = ActivityGrouper::new(db, config);
+
+        // 不同活动名但有共同 context_tags → 应合并
+        let screenshots = vec![
+            create_test_screenshot_v3("s1", 1000, "VSCode", "编写代码", vec!["rust", "vision-jarvis"], Some("work"), vec![]),
+            create_test_screenshot_v3("s2", 1100, "VSCode", "调试程序", vec!["rust", "vision-jarvis"], Some("work"), vec![]),
+            create_test_screenshot_v3("s3", 1200, "VSCode", "查看日志", vec!["rust", "vision-jarvis"], Some("work"), vec![]),
+        ];
+
+        let groups = grouper.group_screenshots(&screenshots).unwrap();
+        assert_eq!(groups.len(), 1); // 共同标签使不同活动合并
+    }
+
+    #[test]
+    fn test_key_elements_in_title() {
+        let config = GroupingConfig::default();
+        let db = Arc::new(Database::open_in_memory().unwrap());
+        let grouper = ActivityGrouper::new(db, config);
+
+        let screenshots = vec![
+            create_test_screenshot_v3("s1", 1000, "VSCode", "编写代码", vec![], None, vec!["pipeline.rs"]),
+            create_test_screenshot_v3("s2", 1100, "VSCode", "编写代码", vec![], None, vec!["pipeline.rs", "mod.rs"]),
+        ];
+
+        let groups = grouper.group_screenshots(&screenshots).unwrap();
+        assert_eq!(groups.len(), 1);
+        assert!(groups[0].title.contains("pipeline.rs"));
     }
 }

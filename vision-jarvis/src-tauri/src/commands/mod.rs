@@ -10,6 +10,7 @@ use crate::settings::SettingsManager;
 use crate::capture::ScreenCapture;
 use crate::capture::scheduler::CaptureScheduler;
 use crate::notification::scheduler::NotificationScheduler;
+use crate::memory::pipeline::PipelineScheduler;
 use crate::error::AppError;
 
 pub mod screenshot;
@@ -29,6 +30,7 @@ pub struct AppState {
     pub screen_capture: Arc<ScreenCapture>,
     pub scheduler: Arc<tokio::sync::Mutex<CaptureScheduler>>,
     pub notification_scheduler: Arc<NotificationScheduler>,
+    pub pipeline: Arc<PipelineScheduler>,
 }
 
 impl AppState {
@@ -38,7 +40,7 @@ impl AppState {
         let storage_path = settings.get_storage_path();
         let interval = settings.get_capture_interval();
 
-        let screen_capture = ScreenCapture::new(storage_path)
+        let screen_capture = ScreenCapture::new(storage_path.clone())
             .expect("Failed to create ScreenCapture");
 
         let scheduler = CaptureScheduler::new(screen_capture.clone(), interval)
@@ -49,12 +51,20 @@ impl AppState {
             Arc::clone(&settings),
         );
 
+        // 创建记忆管道（不需要AI也能启动）
+        let pipeline = PipelineScheduler::new(
+            Arc::clone(&db),
+            storage_path,
+            false, // AI总结默认关闭，等连接AI后启用
+        ).expect("Failed to create PipelineScheduler");
+
         Self {
             db,
             settings,
             screen_capture: Arc::new(screen_capture),
             scheduler: Arc::new(tokio::sync::Mutex::new(scheduler)),
             notification_scheduler: Arc::new(notification_scheduler),
+            pipeline: Arc::new(pipeline),
         }
     }
 }

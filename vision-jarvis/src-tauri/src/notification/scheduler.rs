@@ -6,7 +6,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tokio::task::JoinHandle;
-use super::{Notification, NotificationPriority};
+use super::{Notification, NotificationType, NotificationPriority};
 use super::rules::{RuleEngine, CooldownTracker};
 use super::context;
 use super::delivery;
@@ -83,6 +83,13 @@ impl NotificationScheduler {
                     // 保存到数据库
                     if let Err(e) = save_notification(&db, &notification) {
                         eprintln!("[NotificationScheduler] Failed to save: {}", e);
+                    }
+
+                    // 主动建议同时写入 proactive_suggestions 表
+                    if is_proactive_type(&notification.notification_type) {
+                        if let Err(e) = save_proactive_suggestion(&db, &notification) {
+                            eprintln!("[NotificationScheduler] Failed to save proactive suggestion: {}", e);
+                        }
                     }
 
                     // 标记已发送
@@ -167,6 +174,46 @@ fn save_notification(db: &Database, notification: &Notification) -> Result<()> {
                 notification.scheduled_at,
                 notification.sent_at,
                 notification.dismissed,
+            ),
+        )?;
+        Ok(())
+    })
+}
+
+/// 判断是否为主动建议类型
+fn is_proactive_type(t: &NotificationType) -> bool {
+    matches!(
+        t,
+        NotificationType::HabitReminder
+            | NotificationType::ContextSwitchWarning
+            | NotificationType::SmartBreakReminder
+            | NotificationType::ProjectProgressReminder
+    )
+}
+
+/// 保存主动建议到 proactive_suggestions 表
+fn save_proactive_suggestion(db: &Database, notification: &Notification) -> Result<()> {
+    let suggestion_type = format!("{:?}", notification.notification_type);
+    let trigger_context = serde_json::json!({
+        "notification_id": notification.id,
+        "title": notification.title,
+    })
+    .to_string();
+
+    db.with_connection(|conn| {
+        conn.execute(
+            "INSERT INTO proactive_suggestions (
+                id, suggestion_type, trigger_context, message,
+                priority, delivered, delivered_at, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)",
+            (
+                &notification.id,
+                &suggestion_type,
+                &trigger_context,
+                &notification.message,
+                notification.priority.clone() as i32,
+                notification.created_at,
+                notification.created_at,
             ),
         )?;
         Ok(())

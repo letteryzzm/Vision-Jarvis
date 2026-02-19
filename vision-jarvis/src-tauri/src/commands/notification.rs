@@ -107,3 +107,67 @@ pub async fn get_notification_history(
 
     Ok(result.into())
 }
+
+/// 主动建议信息（前端格式）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuggestionInfo {
+    pub id: String,
+    pub suggestion_type: String,
+    pub message: String,
+    pub priority: i32,
+    pub user_action: Option<String>,
+    pub created_at: i64,
+}
+
+/// 用户对主动建议的反馈
+#[tauri::command]
+pub async fn respond_to_suggestion(
+    state: State<'_, AppState>,
+    id: String,
+    action: String, // "accepted" | "dismissed" | "snoozed"
+) -> Result<ApiResponse<bool>, String> {
+    let result = state.db.with_connection(|conn| {
+        conn.execute(
+            "UPDATE proactive_suggestions SET user_action = ?1 WHERE id = ?2",
+            [&action, &id],
+        )?;
+        Ok(())
+    });
+
+    Ok(result.map(|_| true).into())
+}
+
+/// 获取主动建议历史
+#[tauri::command]
+pub async fn get_suggestion_history(
+    state: State<'_, AppState>,
+    limit: Option<i64>,
+) -> Result<ApiResponse<Vec<SuggestionInfo>>, String> {
+    let limit = limit.unwrap_or(30);
+
+    let result = state.db.with_connection(|conn| {
+        let mut stmt = conn.prepare(
+            "SELECT id, suggestion_type, message, priority, user_action, created_at
+             FROM proactive_suggestions
+             ORDER BY created_at DESC
+             LIMIT ?1"
+        )?;
+
+        let suggestions = stmt
+            .query_map([limit], |row| {
+                Ok(SuggestionInfo {
+                    id: row.get(0)?,
+                    suggestion_type: row.get(1)?,
+                    message: row.get(2)?,
+                    priority: row.get(3)?,
+                    user_action: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        Ok(suggestions)
+    });
+
+    Ok(result.into())
+}

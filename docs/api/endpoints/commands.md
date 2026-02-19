@@ -2,6 +2,8 @@
 
 Vision-Jarvis 前后端通信接口文档。
 
+> **最后更新**: 2026-02-19
+
 ---
 
 ## 概述
@@ -20,436 +22,300 @@ pub struct ApiResponse<T> {
 
 ## 健康检查
 
-### health_check
+### `health_check`
 
-检查应用是否正常运行。
-
-**调用方式**:
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
-
-const response = await invoke('health_check');
-// { success: true, data: "OK", error: null }
+await invoke('health_check')
+// { success: true, data: "OK" }
 ```
-
-**响应**:
-- `ApiResponse<String>` - 成功返回 "OK"
 
 ---
 
 ## 截图管理
 
-### capture_screenshot
+### `capture_screenshot`
 
-捕获当前屏幕截图并保存到数据库。
+捕获当前屏幕截图并保存。
 
-**调用方式**:
 ```typescript
-const response = await invoke('capture_screenshot');
+await invoke('capture_screenshot')
+// { success: true, data: { id, path, captured_at, analyzed } }
 ```
 
-**响应**:
+### `get_screenshots`
+
 ```typescript
-{
-  success: true,
-  data: {
-    id: "uuid-string",
-    path: "/path/to/screenshot.png",
-    captured_at: 1704556800,
-    analyzed: false
-  },
-  error: null
-}
+await invoke('get_screenshots', { limit?: number })
+// { success: true, data: Screenshot[] }
 ```
 
-**错误示例**:
+### `delete_screenshot`
+
 ```typescript
-{
-  success: false,
-  data: null,
-  error: "截图失败: 未找到显示器"
-}
+await invoke('delete_screenshot', { id: string })
 ```
 
 ---
 
-### get_screenshots
+## 记忆管理（V2 遗留）
 
-获取截图列表，按时间倒序排列。
+### `search_memories`
 
-**参数**:
-- `limit?: number` - 返回数量限制（默认 50）
+关键词搜索短期记忆。
 
-**调用方式**:
 ```typescript
-const response = await invoke('get_screenshots', { limit: 20 });
+await invoke('search_memories', { query: string, limit?: number })
 ```
 
-**响应**:
+### `get_memories_by_date`
+
 ```typescript
-{
-  success: true,
-  data: [
-    {
-      id: "uuid-1",
-      path: "/path/to/screenshot1.png",
-      captured_at: 1704556800,
-      analyzed: true
-    },
-    // ...
-  ],
-  error: null
-}
+await invoke('get_memories_by_date', { date: 'YYYY-MM-DD' })
+```
+
+### `generate_memory`
+
+从已分析截图生成短期记忆。
+
+```typescript
+await invoke('generate_memory', { date: 'YYYY-MM-DD' })
 ```
 
 ---
 
-### delete_screenshot
+## 记忆管理（V3）
 
-删除指定的截图（同时删除文件和数据库记录）。
+### `search_activities_v2`
 
-**参数**:
-- `id: string` - 截图 ID
+搜索活动（关键词匹配，TODO: 后续集成语义搜索）。
 
-**调用方式**:
 ```typescript
-const response = await invoke('delete_screenshot', { id: 'uuid-string' });
+await invoke('search_activities_v2', { query: string, limit?: number })
+// data: ActivitySearchResult[]
+// ActivitySearchResult: { id, title, start_time, duration_minutes, application, score }
 ```
 
-**响应**:
+### `get_activity_detail_v2`
+
+获取活动详情。
+
 ```typescript
-{
-  success: true,
-  data: true,
-  error: null
-}
+await invoke('get_activity_detail_v2', { activity_id: string })
+// data: { id, title, start_time, end_time, duration_minutes, application, summary, screenshot_count }
 ```
 
----
+### `get_activities_by_date_v2`
 
-## 记忆管理
+按时间范围获取活动列表。
 
-### search_memories
-
-搜索短期记忆（支持关键词匹配）。
-
-**安全特性**: 自动转义 SQL 通配符，防止注入攻击。
-
-**参数**:
-- `query: string` - 搜索关键词
-- `limit?: number` - 返回数量限制（默认 10）
-
-**调用方式**:
 ```typescript
-const response = await invoke('search_memories', {
-  query: '编程',
-  limit: 20
-});
-```
-
-**响应**:
-```typescript
-{
-  success: true,
-  data: [
-    {
-      id: "uuid-1",
-      date: "2026-02-06",
-      time_start: "09:00",
-      time_end: "10:30",
-      period: "Morning",
-      activity: "编程",
-      summary: "开发 Vision-Jarvis 项目"
-    },
-    // ...
-  ],
-  error: null
-}
-```
-
----
-
-### get_memories_by_date
-
-获取指定日期的所有短期记忆。
-
-**输入验证**: 自动验证日期格式（YYYY-MM-DD），无效日期将返回错误。
-
-**参数**:
-- `date: string` - 日期（格式: YYYY-MM-DD）
-
-**调用方式**:
-```typescript
-const response = await invoke('get_memories_by_date', {
-  date: '2026-02-06'
-});
-```
-
-**响应**: 同 `search_memories`
-
-**错误示例**:
-```typescript
-{
-  success: false,
-  data: null,
-  error: "日期格式错误，请使用YYYY-MM-DD格式: invalid digit found in string"
-}
-```
-
----
-
-### generate_memory
-
-生成指定日期的短期记忆（从已分析的截图）。
-
-**错误处理**: 收集所有保存错误并返回，确保用户了解部分失败情况。
-
-**参数**:
-- `date: string` - 日期（格式: YYYY-MM-DD）
-
-**调用方式**:
-```typescript
-const response = await invoke('generate_memory', {
-  date: '2026-02-06'
-});
-```
-
-**响应**: 同 `search_memories`
-
-**错误示例**:
-```typescript
-{
-  success: false,
-  data: null,
-  error: "保存记忆 uuid-1 失败: UNIQUE constraint failed; 保存记忆 uuid-2 失败: ..."
-}
+await invoke('get_activities_by_date_v2', {
+  start_time: number,  // Unix timestamp (ms)
+  end_time: number
+})
+// data: ActivitySearchResult[]
 ```
 
 ---
 
 ## 通知管理
 
-### get_pending_notifications
+### `get_pending_notifications`
 
-获取所有待处理的通知。
-
-**调用方式**:
 ```typescript
-const response = await invoke('get_pending_notifications');
+await invoke('get_pending_notifications')
+// data: Notification[]
+// Notification: { id, notification_type, priority, title, message, created_at, dismissed }
 ```
 
-**响应**:
+### `dismiss_notification`
+
 ```typescript
-{
-  success: true,
-  data: [
-    {
-      id: "uuid-1",
-      notification_type: "RestReminder",
-      priority: 2,
-      title: "休息提醒",
-      message: "您已经工作了60分钟，建议休息一下",
-      created_at: 1704556800,
-      dismissed: false
-    },
-    // ...
-  ],
-  error: null
-}
+await invoke('dismiss_notification', { id: string })
 ```
 
----
+### `get_notification_history`
 
-### dismiss_notification
-
-关闭（标记为已读）指定通知。
-
-**参数**:
-- `id: string` - 通知 ID
-
-**调用方式**:
 ```typescript
-const response = await invoke('dismiss_notification', {
-  id: 'uuid-string'
-});
+await invoke('get_notification_history', { limit?: number })
 ```
 
-**响应**:
+### `respond_to_suggestion`
+
+响应主动建议（接受/拒绝）。
+
 ```typescript
-{
-  success: true,
-  data: true,
-  error: null
-}
+await invoke('respond_to_suggestion', { id: string, accepted: boolean })
 ```
 
----
+### `get_suggestion_history`
 
-### get_notification_history
+获取主动建议历史。
 
-获取通知历史（包括已关闭的通知）。
-
-**参数**:
-- `limit?: number` - 返回数量限制（默认 50）
-
-**调用方式**:
 ```typescript
-const response = await invoke('get_notification_history', { limit: 100 });
+await invoke('get_suggestion_history', { limit?: number })
 ```
-
-**响应**: 同 `get_pending_notifications`
 
 ---
 
 ## 设置管理
 
-### get_settings
+### `get_settings`
 
-获取当前应用设置。
-
-**调用方式**:
 ```typescript
-const response = await invoke('get_settings');
+await invoke('get_settings')
+// data: AppSettings
 ```
 
-**响应**:
+### `update_settings`
+
 ```typescript
-{
-  success: true,
-  data: {
-    capture_interval_seconds: 5,
-    storage_path: "/Users/user/Library/Application Support/vision-jarvis/screenshots",
-    storage_limit_mb: 1024,
-    memory_enabled: true,
-    openai_api_key: "",
-    timed_reminder_enabled: false,
-    timed_reminder_start: "09:00",
-    timed_reminder_end: "18:00",
-    timed_reminder_interval_minutes: 60,
-    inactivity_reminder_enabled: false,
-    inactivity_threshold_minutes: 120
-  },
-  error: null
-}
+await invoke('update_settings', { settings: AppSettings })
 ```
-
----
-
-### update_settings
-
-更新应用设置（含验证）。
-
-**参数**:
-- `settings: AppSettings` - 完整的设置对象
 
 **验证规则**:
 - `capture_interval_seconds`: 1-15 秒
-- `storage_limit_mb`: > 0
-- `timed_reminder_start/end`: HH:MM 格式，小时 0-23，分钟 0-59
-- `timed_reminder_interval_minutes`: > 0（如果启用）
-- `inactivity_threshold_minutes`: > 0（如果启用）
+- `timed_reminder_start/end`: HH:MM 格式
 
-**调用方式**:
-```typescript
-const newSettings = { ...currentSettings, capture_interval_seconds: 10 };
-const response = await invoke('update_settings', { settings: newSettings });
-```
+### `reset_settings`
 
-**响应**:
 ```typescript
-{
-  success: true,
-  data: true,
-  error: null
-}
-```
-
-**错误示例**:
-```typescript
-{
-  success: false,
-  data: null,
-  error: "更新设置失败: 截图间隔必须在 1-15 秒之间"
-}
+await invoke('reset_settings')
+// data: AppSettings（默认值）
 ```
 
 ---
 
-### reset_settings
+## 窗口管理
 
-重置所有设置为默认值。
+### `open_memory_window`
 
-**调用方式**:
+打开记忆管理窗口。
+
 ```typescript
-const response = await invoke('reset_settings');
+await invoke('open_memory_window')
 ```
 
-**响应**:
+### `open_popup_setting_window`
+
+打开弹窗设置窗口。
+
 ```typescript
-{
-  success: true,
-  data: { /* 默认设置对象 */ },
-  error: null
-}
+await invoke('open_popup_setting_window')
 ```
 
----
+### `expand_to_header`
 
-## 错误处理
+悬浮球展开为 Header 模式。
 
-所有命令遵循统一的错误处理模式：
-
-1. **成功响应**: `success: true, data: T, error: null`
-2. **失败响应**: `success: false, data: null, error: "错误描述"`
-
-**前端示例**:
 ```typescript
-const response = await invoke('capture_screenshot');
+await invoke('expand_to_header')
+```
 
-if (response.success) {
-  console.log('截图成功:', response.data);
-} else {
-  console.error('截图失败:', response.error);
-  // 显示错误提示给用户
-}
+### `expand_to_asker`
+
+悬浮球展开为 Asker 模式。
+
+```typescript
+await invoke('expand_to_asker')
+```
+
+### `collapse_to_ball`
+
+收起为悬浮球。
+
+```typescript
+await invoke('collapse_to_ball')
 ```
 
 ---
 
-## 安全特性
+## AI 配置
 
-### SQL 注入防护
+### `get_ai_config_summary`
 
-`search_memories()` 自动转义 SQL 通配符：
-```rust
-// 用户输入: "%"
-// 转义后: "\%"
-// SQL: WHERE activity LIKE '%\%%' ESCAPE '\'
+获取 AI 配置摘要（不含敏感信息）。
+
+```typescript
+await invoke('get_ai_config_summary')
 ```
 
-### 输入验证
+### `get_ai_config`
 
-- 日期格式验证（YYYY-MM-DD）
-- 设置范围验证
-- 参数类型检查
+获取完整 AI 配置。
 
-### 线程安全
+```typescript
+await invoke('get_ai_config')
+```
 
-- 使用 `Arc<Mutex<>>` 保护共享状态
-- 无数据竞争
-- 原子操作保证
+### `update_ai_api_key`
+
+```typescript
+await invoke('update_ai_api_key', { provider: string, api_key: string })
+```
+
+### `update_ai_provider_config`
+
+```typescript
+await invoke('update_ai_provider_config', { provider: string, config: object })
+```
+
+### `set_active_ai_provider`
+
+```typescript
+await invoke('set_active_ai_provider', { provider: string })
+```
+
+### `test_ai_connection`
+
+测试 AI 连接是否正常。
+
+```typescript
+await invoke('test_ai_connection', { provider: string })
+// data: { success: boolean, latency_ms?: number, error?: string }
+```
+
+### `get_available_ai_providers`
+
+获取支持的 AI 提供商列表。
+
+```typescript
+await invoke('get_available_ai_providers')
+// data: ModelInfo[]
+```
+
+### `delete_ai_provider`
+
+```typescript
+await invoke('delete_ai_provider', { provider: string })
+```
+
+### `reset_ai_config`
+
+重置 AI 配置为默认值。
+
+```typescript
+await invoke('reset_ai_config')
+```
+
+### `connect_ai_to_pipeline`
+
+将已配置的 AI 连接到记忆管道（启用 AI 分析）。
+
+```typescript
+await invoke('connect_ai_to_pipeline')
+```
+
+### `get_pipeline_status`
+
+获取记忆管道运行状态。
+
+```typescript
+await invoke('get_pipeline_status')
+// data: { running: boolean, ai_enabled: boolean, last_run?: number }
+```
 
 ---
 
-## 性能考虑
-
-- **数据库连接池**: 使用 `with_connection()` 管理连接
-- **参数化查询**: 预编译 SQL 语句
-- **批量操作**: generate_memory() 批量插入记忆
-- **限制查询**: 默认限制返回数量（防止 OOM）
-
----
-
-**文档版本**: v1.0  
-**最后更新**: 2026-02-06  
-**对应代码**: Phase 5 - Tauri Commands
+**文档版本**: v2.0
+**最后更新**: 2026-02-19
