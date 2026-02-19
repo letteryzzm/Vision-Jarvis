@@ -1,6 +1,6 @@
-/// 截图AI分析器
+/// 录制分段AI分析器
 ///
-/// 负责将截屏图片发送给AI进行理解，提取结构化信息
+/// 负责将屏幕录制视频发送给AI进行理解，提取结构化信息
 /// 输出存入 screenshot_analyses 表，供后续活动分组和模式学习使用
 
 use anyhow::Result;
@@ -14,10 +14,10 @@ use crate::ai::AIClient;
 use crate::db::Database;
 use crate::db::schema::ScreenshotAnalysis;
 
-/// AI返回的截图理解结果（用于JSON解析）
+/// AI返回的分析结果（用于JSON解析）
 /// 一次性提取所有下游组件需要的信息
 #[derive(Debug, serde::Deserialize)]
-struct AIScreenshotResult {
+struct AIAnalysisResult {
     application: String,
     activity_type: String,
     activity_description: String,
@@ -28,7 +28,6 @@ struct AIScreenshotResult {
     context_tags: Vec<String>,
     #[serde(default = "default_productivity_score")]
     productivity_score: i32,
-    // V5: 一次性分析扩展
     #[serde(default = "default_activity_category")]
     activity_category: String,
     #[serde(default)]
@@ -50,7 +49,7 @@ fn default_activity_category() -> String {
 /// 分析配置
 #[derive(Debug, Clone)]
 pub struct AnalyzerConfig {
-    /// 每批分析的最大截图数
+    /// 每批分析的最大录制分段数
     pub batch_size: usize,
     /// 分析失败后的最大重试次数
     pub max_retries: u32,
@@ -65,7 +64,7 @@ impl Default for AnalyzerConfig {
     }
 }
 
-/// 截图分析器
+/// 录制分段分析器
 pub struct ScreenshotAnalyzer {
     ai_client: Arc<AIClient>,
     db: Arc<Database>,
@@ -75,76 +74,6 @@ pub struct ScreenshotAnalyzer {
 impl ScreenshotAnalyzer {
     pub fn new(ai_client: Arc<AIClient>, db: Arc<Database>, config: AnalyzerConfig) -> Self {
         Self { ai_client, db, config }
-    }
-
-    /// 分析单张截图
-    pub async fn analyze_screenshot(
-        &self,
-        screenshot_id: &str,
-        image_path: &Path,
-    ) -> Result<ScreenshotAnalysis> {
-        // 1. 读取图片并转base64
-        let image_data = tokio::fs::read(image_path).await?;
-        let image_base64 = BASE64.encode(&image_data);
-
-        // 2. 调用AI分析
-        let prompt = screenshot_understanding_prompt();
-        let response = self.ai_client.analyze_image(&image_base64, &prompt).await
-            .map_err(|e| anyhow::anyhow!("AI分析失败: {}", e))?;
-
-        // 3. 解析JSON结果
-        let ai_result = parse_ai_response(&response)?;
-
-        // 4. 构建分析结果
-        let now = chrono::Utc::now().timestamp();
-        let analysis = ScreenshotAnalysis {
-            screenshot_id: screenshot_id.to_string(),
-            application: ai_result.application,
-            activity_type: ai_result.activity_type,
-            activity_description: ai_result.activity_description,
-            key_elements: ai_result.key_elements,
-            ocr_text: ai_result.ocr_text,
-            context_tags: ai_result.context_tags,
-            productivity_score: ai_result.productivity_score.clamp(1, 10),
-            analysis_json: response.clone(),
-            analyzed_at: now,
-            activity_category: ai_result.activity_category,
-            activity_summary: ai_result.activity_summary,
-            project_name: ai_result.project_name,
-            accomplishments: ai_result.accomplishments,
-        };
-
-        // 5. 保存到数据库
-        self.save_analysis(&analysis)?;
-
-        // 6. 标记截图为已分析
-        self.mark_screenshot_analyzed(screenshot_id)?;
-
-        Ok(analysis)
-    }
-
-    /// 批量分析未处理的截图
-    pub async fn analyze_pending(&self) -> Result<AnalysisBatchResult> {
-        let pending = self.get_pending_screenshots()?;
-
-        if pending.is_empty() {
-            return Ok(AnalysisBatchResult::default());
-        }
-
-        info!("开始批量分析 {} 张截图", pending.len());
-        let mut result = AnalysisBatchResult { total: pending.len(), ..Default::default() };
-
-        for screenshot in pending {
-            match self.analyze_with_retry(&screenshot.id, &screenshot.path).await {
-                Ok(_) => result.analyzed += 1,
-                Err(None) => result.skipped += 1,
-                Err(Some(_)) => result.failed += 1,
-            }
-        }
-
-        info!("批量分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
-            result.total, result.analyzed, result.skipped, result.failed);
-        Ok(result)
     }
 
     /// 分析单个录制分段
@@ -209,30 +138,7 @@ impl ScreenshotAnalyzer {
         Ok(result)
     }
 
-    /// 带重试的截图分析（Ok=成功, Err(None)=跳过, Err(Some)=失败）
-    async fn analyze_with_retry(&self, id: &str, path: &str) -> std::result::Result<(), Option<anyhow::Error>> {
-        let p = Path::new(path);
-        if !p.exists() {
-            warn!("截图文件不存在: {}", path);
-            return Err(None);
-        }
-        for attempt in 0..=self.config.max_retries {
-            match self.analyze_screenshot(id, p).await {
-                Ok(_) => return Ok(()),
-                Err(e) if attempt == self.config.max_retries => {
-                    error!("截图分析失败(已重试{}次): {} - {}", attempt, id, e);
-                    return Err(Some(e));
-                }
-                Err(e) => {
-                    warn!("截图分析失败(重试{}/{}): {} - {}", attempt + 1, self.config.max_retries, id, e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                }
-            }
-        }
-        unreachable!()
-    }
-
-    /// 带重试的录制分析
+    /// 带重试的录制分析（Ok=成功, Err(None)=跳过, Err(Some)=失败）
     async fn analyze_recording_with_retry(&self, id: &str, path: &str) -> std::result::Result<(), Option<anyhow::Error>> {
         let p = Path::new(path);
         if !p.exists() {
@@ -256,7 +162,7 @@ impl ScreenshotAnalyzer {
     }
 
     /// 获取待分析的录制分段
-    fn get_pending_recordings(&self) -> Result<Vec<PendingScreenshot>> {
+    fn get_pending_recordings(&self) -> Result<Vec<PendingRecording>> {
         self.db.with_connection(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, path FROM recordings
@@ -266,7 +172,7 @@ impl ScreenshotAnalyzer {
             )?;
             let recs = stmt
                 .query_map([self.config.batch_size], |row| {
-                    Ok(PendingScreenshot {
+                    Ok(PendingRecording {
                         id: row.get(0)?,
                         path: row.get(1)?,
                     })
@@ -284,32 +190,6 @@ impl ScreenshotAnalyzer {
                 [recording_id],
             )?;
             Ok(())
-        })
-    }
-
-    /// 获取待分析的截图
-    fn get_pending_screenshots(&self) -> Result<Vec<PendingScreenshot>> {
-        self.db.with_connection(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT s.id, s.path
-                 FROM screenshots s
-                 LEFT JOIN screenshot_analyses sa ON s.id = sa.screenshot_id
-                 WHERE sa.screenshot_id IS NULL
-                   AND s.analyzed = 0
-                 ORDER BY s.captured_at ASC
-                 LIMIT ?1"
-            )?;
-
-            let screenshots = stmt
-                .query_map([self.config.batch_size], |row| {
-                    Ok(PendingScreenshot {
-                        id: row.get(0)?,
-                        path: row.get(1)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-
-            Ok(screenshots)
         })
     }
 
@@ -343,40 +223,11 @@ impl ScreenshotAnalyzer {
             Ok(())
         })
     }
-
-    /// 标记截图为已分析
-    fn mark_screenshot_analyzed(&self, screenshot_id: &str) -> Result<()> {
-        self.db.with_connection(|conn| {
-            conn.execute(
-                "UPDATE screenshots SET analyzed = 1, analyzed_at = strftime('%s', 'now') WHERE id = ?1",
-                [screenshot_id],
-            )?;
-            Ok(())
-        })
-    }
-
-    /// 同时更新旧的 analysis_result 字段（兼容V2活动分组器）
-    pub fn sync_to_v2_format(&self, analysis: &ScreenshotAnalysis) -> Result<()> {
-        let v2_json = serde_json::json!({
-            "activity": analysis.activity_description,
-            "application": analysis.application,
-            "description": analysis.activity_description,
-            "category": analysis.activity_type,
-        });
-
-        self.db.with_connection(|conn| {
-            conn.execute(
-                "UPDATE screenshots SET analysis_result = ?1 WHERE id = ?2",
-                rusqlite::params![v2_json.to_string(), &analysis.screenshot_id],
-            )?;
-            Ok(())
-        })
-    }
 }
 
-/// 待分析截图
+/// 待分析的录制分段
 #[derive(Debug)]
-struct PendingScreenshot {
+struct PendingRecording {
     id: String,
     path: String,
 }
@@ -388,40 +239,6 @@ pub struct AnalysisBatchResult {
     pub analyzed: usize,
     pub skipped: usize,
     pub failed: usize,
-}
-
-/// 截图理解Prompt
-fn screenshot_understanding_prompt() -> String {
-    r#"分析这张屏幕截图，提取以下信息。严格按JSON格式返回，不要包含其他文字：
-
-{
-  "application": "应用名称（如VSCode、Chrome、微信等）",
-  "activity_type": "work|entertainment|communication|learning|other",
-  "activity_description": "用户正在做什么（一句话，要具体）",
-  "activity_category": "work|entertainment|communication|other",
-  "activity_summary": "活动概述（供时间线展示，一句话）",
-  "key_elements": ["关键元素1", "关键元素2"],
-  "ocr_text": "屏幕上的重要文本（如果有，简要提取）",
-  "context_tags": ["标签1", "标签2"],
-  "productivity_score": 5,
-  "project_name": "项目名称或null",
-  "accomplishments": ["完成了XX"]
-}
-
-要求：
-1. application: 识别主要应用程序名称
-2. activity_type: 只能是 work/entertainment/communication/learning/other 之一
-3. activity_description: 必须具体（如"在VSCode中编写Rust代码"而非"使用电脑"）
-4. activity_category: 只能是 work/entertainment/communication/other 之一
-5. activity_summary: 简明概述当前活动（供时间线展示）
-6. key_elements: 提取窗口标题、文件名、网页标题等关键信息
-7. ocr_text: 仅提取重要文本，不要全部OCR
-8. context_tags: 2-5个描述当前上下文的标签
-9. productivity_score: 1=纯娱乐 5=一般 10=深度工作
-10. project_name: 如果能识别出用户在做什么项目则填写项目名，否则返回null
-11. accomplishments: 从截图中提取的成果要点（0-3条），没有则返回空数组
-
-只返回JSON，不要其他内容。"#.to_string()
 }
 
 /// 录制分段理解Prompt
@@ -459,15 +276,15 @@ fn recording_understanding_prompt() -> String {
 }
 
 /// 解析AI返回的JSON
-fn parse_ai_response(response: &str) -> Result<AIScreenshotResult> {
+fn parse_ai_response(response: &str) -> Result<AIAnalysisResult> {
     // 尝试直接解析
-    if let Ok(result) = serde_json::from_str::<AIScreenshotResult>(response) {
+    if let Ok(result) = serde_json::from_str::<AIAnalysisResult>(response) {
         return Ok(result);
     }
 
     // 尝试提取JSON块（AI可能返回markdown代码块）
     let json_str = extract_json_from_response(response);
-    serde_json::from_str::<AIScreenshotResult>(&json_str)
+    serde_json::from_str::<AIAnalysisResult>(&json_str)
         .map_err(|e| anyhow::anyhow!("解析AI响应JSON失败: {} - 原始响应: {}", e, response))
 }
 
@@ -534,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_extra_text() {
-        let response = r#"根据截图分析：
+        let response = r#"根据录制分析：
 {
   "application": "微信",
   "activity_type": "communication",
@@ -569,8 +386,8 @@ mod tests {
     }
 
     #[test]
-    fn test_screenshot_understanding_prompt_not_empty() {
-        let prompt = screenshot_understanding_prompt();
+    fn test_recording_understanding_prompt_not_empty() {
+        let prompt = recording_understanding_prompt();
         assert!(!prompt.is_empty());
         assert!(prompt.contains("application"));
         assert!(prompt.contains("activity_type"));
