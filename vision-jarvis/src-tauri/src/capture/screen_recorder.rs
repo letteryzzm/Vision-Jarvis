@@ -40,7 +40,6 @@ fn time_period(hour: u32) -> &'static str {
 
 pub struct ScreenRecorder {
     storage_path: PathBuf,
-    segment_duration_secs: u64,
     fps: u8,
     screen_device_index: u32,
     process: Mutex<Option<Child>>,
@@ -48,7 +47,7 @@ pub struct ScreenRecorder {
 }
 
 impl ScreenRecorder {
-    pub fn new(storage_path: PathBuf, segment_duration_secs: u64, fps: u8) -> AppResult<Self> {
+    pub fn new(storage_path: PathBuf, _segment_duration_secs: u64, fps: u8) -> AppResult<Self> {
         std::fs::create_dir_all(&storage_path)
             .map_err(|e| AppError::capture(1, format!("创建存储目录失败: {}", e)))?;
 
@@ -57,7 +56,6 @@ impl ScreenRecorder {
 
         Ok(Self {
             storage_path,
-            segment_duration_secs,
             fps,
             screen_device_index: idx,
             process: Mutex::new(None),
@@ -82,7 +80,6 @@ impl ScreenRecorder {
                 "-f", "avfoundation",
                 "-framerate", &self.fps.to_string(),
                 "-i", &format!("{}:none", self.screen_device_index),
-                "-t", &self.segment_duration_secs.to_string(),
                 "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
                 "-c:v", "libx264",
                 "-preset", "ultrafast",
@@ -101,15 +98,6 @@ impl ScreenRecorder {
         *self.current_path.lock().await = Some(path.clone());
 
         Ok(path)
-    }
-
-    pub async fn wait_segment(&self) -> AppResult<()> {
-        let mut guard = self.process.lock().await;
-        if let Some(ref mut child) = *guard {
-            let _ = child.wait();
-        }
-        *guard = None;
-        Ok(())
     }
 
     pub async fn stop(&self) {

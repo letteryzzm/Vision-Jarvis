@@ -42,6 +42,8 @@ impl CaptureScheduler {
         let db = self.db.clone();
         let is_running = Arc::clone(&self.is_running);
 
+        let interval = self.interval_seconds;
+
         let handle = tokio::spawn(async move {
             loop {
                 if !*is_running.lock().await { break; }
@@ -61,12 +63,14 @@ impl CaptureScheduler {
                     .unwrap_or_default();
                 info!("Recording: {}", filename);
 
-                if let Err(e) = recorder.wait_segment().await {
-                    error!("Segment wait failed: {}", e);
-                }
+                // 异步等待分段时长，不阻塞 tokio
+                tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
 
-                // 被停止时不保存
+                // 被停止时不保存（scheduler.stop 已处理清理）
                 if !*is_running.lock().await { break; }
+
+                // 发送 SIGTERM 结束 FFmpeg，等待写入文件尾
+                recorder.stop().await;
 
                 let end_time = chrono::Utc::now().timestamp();
                 let duration = end_time - start_time;
