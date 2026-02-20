@@ -7,9 +7,9 @@ use thiserror::Error;
 /// 应用错误类型
 #[derive(Error, Debug)]
 pub enum AppError {
-    /// 截图相关错误
-    #[error("[ERR_SCREENSHOT_{0:03}] {1}")]
-    Screenshot(u16, String),
+    /// 录制相关错误
+    #[error("[ERR_CAPTURE_{0:03}] {1}")]
+    Capture(u16, String),
 
     /// AI 相关错误
     #[error("[ERR_AI_{0:03}] {1}")]
@@ -53,9 +53,9 @@ pub enum AppError {
 }
 
 impl AppError {
-    /// 创建截图错误
-    pub fn screenshot(code: u16, msg: impl Into<String>) -> Self {
-        Self::Screenshot(code, msg.into())
+    /// 创建录制错误
+    pub fn capture(code: u16, msg: impl Into<String>) -> Self {
+        Self::Capture(code, msg.into())
     }
 
     /// 创建 AI 错误
@@ -175,9 +175,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_screenshot_error() {
-        let err = AppError::screenshot(1, "截图失败");
-        assert_eq!(err.to_string(), "[ERR_SCREENSHOT_001] 截图失败");
+    fn test_capture_error() {
+        let err = AppError::capture(1, "录制失败");
+        assert_eq!(err.to_string(), "[ERR_CAPTURE_001] 录制失败");
     }
 
     #[test]

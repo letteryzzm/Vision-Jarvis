@@ -13,7 +13,7 @@ use crate::notification::scheduler::NotificationScheduler;
 use crate::memory::pipeline::PipelineScheduler;
 use crate::error::AppError;
 
-pub mod screenshot;
+pub mod recording;
 pub mod memory;
 pub mod notification;
 pub mod settings;

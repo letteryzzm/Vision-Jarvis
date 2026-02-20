@@ -7,7 +7,7 @@ use crate::db::Database;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use log::{debug, error, warn};
+use log::{error, info, warn};
 use super::screen_recorder::ScreenRecorder;
 
 /// 录制调度器
@@ -38,7 +38,7 @@ impl CaptureScheduler {
     pub async fn start(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if *running {
-            return Err(AppError::screenshot(10, "调度器已经在运行"));
+            return Err(AppError::capture(10, "调度器已经在运行"));
         }
         *running = true;
         drop(running);
@@ -67,7 +67,7 @@ impl CaptureScheduler {
                 let filename = output_path.file_name()
                     .map(|f| f.to_string_lossy().to_string())
                     .unwrap_or_default();
-                debug!("Recording: {}", filename);
+                info!("Recording: {}", filename);
 
                 // 等待分段自然结束
                 if let Err(e) = recorder.wait_segment().await {
@@ -101,7 +101,7 @@ impl CaptureScheduler {
                     }) {
                         error!("Failed to save recording: {}", e);
                     } else {
-                        debug!("Saved: {}..{} ({}s)", &id[..8], &id[id.len()-4..], duration);
+                        info!("Saved: {}..{} ({}s)", &id[..8], &id[id.len()-4..], duration);
                     }
                 }
             }
@@ -114,7 +114,7 @@ impl CaptureScheduler {
     pub async fn stop(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if !*running {
-            return Err(AppError::screenshot(11, "调度器未运行"));
+            return Err(AppError::capture(11, "调度器未运行"));
         }
         *running = false;
         drop(running);
@@ -126,7 +126,7 @@ impl CaptureScheduler {
 
         if let Some(handle) = self.task_handle.take() {
             handle.await
-                .map_err(|e| AppError::screenshot(12, format!("等待任务完成失败: {}", e)))?;
+                .map_err(|e| AppError::capture(12, format!("等待任务完成失败: {}", e)))?;
         }
 
         Ok(())

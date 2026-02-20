@@ -24,6 +24,11 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 初始化日志
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_secs()
+        .init();
+
     // 初始化数据库
     let db_path = dirs::data_local_dir()
         .unwrap()
@@ -41,8 +46,8 @@ pub fn run() {
     // 创建应用状态
     let app_state = AppState::new(db, settings_manager);
 
-    // 创建 AI 配置状态
-    let ai_config_state = AIConfigState::new();
+    // 创建 AI 配置状态（从数据库加载已保存的配置）
+    let ai_config_state = AIConfigState::new(app_state.db.clone());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -142,11 +147,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::health_check,
-            // 截图相关
-            commands::screenshot::capture_screenshot,
-            commands::screenshot::get_screenshots,
-            commands::screenshot::delete_screenshot,
-            commands::screenshot::get_scheduler_status,
+            // 录制相关
+            commands::recording::get_scheduler_status,
             // 记忆相关
             commands::memory::search_memories,
             commands::memory::get_memories_by_date,
