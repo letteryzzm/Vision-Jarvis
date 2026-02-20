@@ -1,15 +1,9 @@
-/// 屏幕录制器
-///
-/// 使用 FFmpeg avfoundation 进行 macOS 屏幕分段录制
-
 use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::{Utc, Timelike};
-use log::{debug, info, warn};
+use log::info;
 use uuid::Uuid;
 
 fn find_screen_device_index() -> u32 {
@@ -36,7 +30,7 @@ fn find_screen_device_index() -> u32 {
     1
 }
 
-fn get_time_period(hour: u32) -> &'static str {
+fn time_period(hour: u32) -> &'static str {
     match hour {
         0..=11 => "0_00-12_00",
         12..=17 => "12_00-18_00",
@@ -49,40 +43,39 @@ pub struct ScreenRecorder {
     segment_duration_secs: u64,
     fps: u8,
     screen_device_index: u32,
-    is_recording: Arc<AtomicBool>,
-    current_process: Arc<Mutex<Option<Child>>>,
+    process: Mutex<Option<Child>>,
+    current_path: Mutex<Option<PathBuf>>,
 }
 
 impl ScreenRecorder {
     pub fn new(storage_path: PathBuf, segment_duration_secs: u64, fps: u8) -> AppResult<Self> {
         std::fs::create_dir_all(&storage_path)
-            .map_err(|e| AppError::capture(1, format!("创建录制存储目录失败: {}", e)))?;
+            .map_err(|e| AppError::capture(1, format!("创建存储目录失败: {}", e)))?;
 
-        let screen_device_index = find_screen_device_index();
-        info!("Screen capture device index: {}", screen_device_index);
+        let idx = find_screen_device_index();
+        info!("Screen device index: {}", idx);
 
         Ok(Self {
             storage_path,
             segment_duration_secs,
             fps,
-            screen_device_index,
-            is_recording: Arc::new(AtomicBool::new(false)),
-            current_process: Arc::new(Mutex::new(None)),
+            screen_device_index: idx,
+            process: Mutex::new(None),
+            current_path: Mutex::new(None),
         })
     }
 
     pub async fn start_segment(&self) -> AppResult<PathBuf> {
         let now = Utc::now();
-        let date_dir = format!("{}", now.format("%Y%m%d"));
-        let period_dir = get_time_period(now.hour());
-        let rec_dir = self.storage_path.join("recordings").join(&date_dir).join(period_dir);
+        let dir = self.storage_path
+            .join("recordings")
+            .join(now.format("%Y%m%d").to_string())
+            .join(time_period(now.hour()));
 
-        std::fs::create_dir_all(&rec_dir)
-            .map_err(|e| AppError::capture(1, format!("创建录制目录失败: {}", e)))?;
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| AppError::capture(2, format!("创建录制目录失败: {}", e)))?;
 
-        let id = Uuid::new_v4();
-        let filename = format!("{}_{}.mp4", now.format("%H-%M-%S"), id);
-        let output_path = rec_dir.join(&filename);
+        let path = dir.join(format!("{}_{}.mp4", now.format("%H-%M-%S"), Uuid::new_v4()));
 
         let child = Command::new("ffmpeg")
             .args([
@@ -96,24 +89,31 @@ impl ScreenRecorder {
                 "-crf", "30",
                 "-pix_fmt", "yuv420p",
                 "-y",
-                output_path.to_str().unwrap(),
+                path.to_str().unwrap(),
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::null())
             .spawn()
-            .map_err(|e| AppError::capture(20, format!("启动 FFmpeg 失败: {}", e)))?;
+            .map_err(|e| AppError::capture(3, format!("启动 FFmpeg 失败: {}", e)))?;
 
-        self.is_recording.store(true, Ordering::SeqCst);
-        *self.current_process.lock().await = Some(child);
+        *self.process.lock().await = Some(child);
+        *self.current_path.lock().await = Some(path.clone());
 
-        Ok(output_path)
+        Ok(path)
     }
 
-    pub async fn stop(&self) -> AppResult<()> {
-        self.is_recording.store(false, Ordering::SeqCst);
+    pub async fn wait_segment(&self) -> AppResult<()> {
+        let mut guard = self.process.lock().await;
+        if let Some(ref mut child) = *guard {
+            let _ = child.wait();
+        }
+        *guard = None;
+        Ok(())
+    }
 
-        let mut guard = self.current_process.lock().await;
+    pub async fn stop(&self) {
+        let mut guard = self.process.lock().await;
         if let Some(ref mut child) = *guard {
             #[cfg(unix)]
             unsafe { libc::kill(child.id() as i32, libc::SIGTERM); }
@@ -122,36 +122,19 @@ impl ScreenRecorder {
             let _ = child.wait();
         }
         *guard = None;
-        Ok(())
     }
 
-    pub async fn wait_segment(&self) -> AppResult<()> {
-        let mut guard = self.current_process.lock().await;
-        if let Some(ref mut child) = *guard {
-            let status = child.wait()
-                .map_err(|e| AppError::capture(21, format!("等待 FFmpeg 结束失败: {}", e)))?;
-            if !status.success() {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::process::ExitStatusExt;
-                    if status.signal().is_some() {
-                        debug!("FFmpeg terminated by signal (normal)");
-                    } else {
-                        warn!("FFmpeg exited: {}", status);
-                    }
-                }
-                #[cfg(not(unix))]
-                warn!("FFmpeg exited: {}", status);
-            }
+    pub async fn delete_current_file(&self) {
+        let path = self.current_path.lock().await.take();
+        if let Some(p) = path {
+            let _ = std::fs::remove_file(&p);
         }
-        *guard = None;
-        Ok(())
     }
 }
 
 impl Drop for ScreenRecorder {
     fn drop(&mut self) {
-        if let Ok(mut guard) = self.current_process.try_lock() {
+        if let Ok(mut guard) = self.process.try_lock() {
             if let Some(ref mut child) = *guard {
                 let _ = child.kill();
                 let _ = child.wait();

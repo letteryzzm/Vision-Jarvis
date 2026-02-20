@@ -1,16 +1,11 @@
-/// 录制调度器
-///
-/// 管理 ScreenRecorder 的分段录制循环，每个分段结束后写入 DB 记录
-
 use crate::error::{AppError, AppResult};
 use crate::db::Database;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use log::{error, info, warn};
+use log::{error, info};
 use super::screen_recorder::ScreenRecorder;
 
-/// 录制调度器
 pub struct CaptureScheduler {
     recorder: Arc<ScreenRecorder>,
     db: Option<Arc<Database>>,
@@ -38,7 +33,7 @@ impl CaptureScheduler {
     pub async fn start(&mut self) -> AppResult<()> {
         let mut running = self.is_running.lock().await;
         if *running {
-            return Err(AppError::capture(10, "调度器已经在运行"));
+            return Err(AppError::capture(10, "调度器已在运行"));
         }
         *running = true;
         drop(running);
@@ -49,15 +44,12 @@ impl CaptureScheduler {
 
         let handle = tokio::spawn(async move {
             loop {
-                let running = is_running.lock().await;
-                if !*running { break; }
-                drop(running);
+                if !*is_running.lock().await { break; }
 
-                // 启动一个分段
                 let output_path = match recorder.start_segment().await {
                     Ok(p) => p,
                     Err(e) => {
-                        error!("Failed to start recording segment: {}", e);
+                        error!("Start segment failed: {}", e);
                         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                         continue;
                     }
@@ -69,15 +61,16 @@ impl CaptureScheduler {
                     .unwrap_or_default();
                 info!("Recording: {}", filename);
 
-                // 等待分段自然结束
                 if let Err(e) = recorder.wait_segment().await {
                     error!("Segment wait failed: {}", e);
                 }
 
+                // 被停止时不保存
+                if !*is_running.lock().await { break; }
+
                 let end_time = chrono::Utc::now().timestamp();
                 let duration = end_time - start_time;
 
-                // 检查文件是否存在且非空
                 let file_ok = output_path.exists()
                     && std::fs::metadata(&output_path).map(|m| m.len() > 0).unwrap_or(false);
 
@@ -86,11 +79,9 @@ impl CaptureScheduler {
                     continue;
                 }
 
-                // 写入 DB
                 if let Some(ref db) = db {
                     let id = uuid::Uuid::new_v4().to_string();
                     let path_str = output_path.to_string_lossy().to_string();
-
                     if let Err(e) = db.with_connection(|conn| {
                         conn.execute(
                             "INSERT INTO recordings (id, path, start_time, end_time, duration_secs, fps, analyzed, created_at)
@@ -119,14 +110,12 @@ impl CaptureScheduler {
         *running = false;
         drop(running);
 
-        // 停止当前录制
-        if let Err(e) = self.recorder.stop().await {
-            warn!("Stop recorder failed: {}", e);
-        }
+        // 停止录制并删除未完成的文件
+        self.recorder.stop().await;
+        self.recorder.delete_current_file().await;
 
         if let Some(handle) = self.task_handle.take() {
-            handle.await
-                .map_err(|e| AppError::capture(12, format!("等待任务完成失败: {}", e)))?;
+            let _ = handle.await;
         }
 
         Ok(())
@@ -134,17 +123,5 @@ impl CaptureScheduler {
 
     pub async fn is_running(&self) -> bool {
         *self.is_running.lock().await
-    }
-
-    pub async fn update_interval(&mut self, segment_duration_secs: u64) -> AppResult<()> {
-        let was_running = self.is_running().await;
-        if was_running {
-            self.stop().await?;
-        }
-        self.interval_seconds = segment_duration_secs;
-        if was_running {
-            self.start().await?;
-        }
-        Ok(())
     }
 }

@@ -62,11 +62,11 @@ pub async fn update_settings(
                 }
             }
         } else if interval_changed && settings.memory_enabled {
-            if let Err(e) = scheduler.update_interval(settings.capture_interval_seconds as u64).await {
-                error!("Failed to update interval: {}", e);
-            } else {
-                info!("Segment duration updated: {}s", settings.capture_interval_seconds);
-            }
+            let was_running = scheduler.is_running().await;
+            if was_running { let _ = scheduler.stop().await; }
+            scheduler.interval_seconds = settings.capture_interval_seconds as u64;
+            if was_running { let _ = scheduler.start().await; }
+            info!("Segment duration updated: {}s", settings.capture_interval_seconds);
         }
     }
 
