@@ -4,9 +4,11 @@
 
 use super::ApiResponse;
 use crate::ai::{AIProviderConfig, AIConfig, AIClient, ModelInfo, get_supported_models};
+use crate::db::Database;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use log::info;
 
 /// AI 配置摘要（前端展示用）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,12 +26,16 @@ pub struct AIConfigSummary {
 /// AI 配置状态
 pub struct AIConfigState {
     config: Arc<Mutex<AIConfig>>,
+    db: Option<Arc<Database>>,
 }
 
 impl AIConfigState {
-    pub fn new() -> Self {
+    pub fn new(db: Arc<Database>) -> Self {
+        let config = load_from_db(&db).unwrap_or_default();
+        info!("AI config loaded: {} providers", config.providers.len());
         Self {
-            config: Arc::new(Mutex::new(AIConfig::new())),
+            config: Arc::new(Mutex::new(config)),
+            db: Some(db),
         }
     }
 
@@ -38,6 +44,9 @@ impl AIConfigState {
     }
 
     pub fn update(&self, new_config: AIConfig) -> Result<(), String> {
+        if let Some(ref db) = self.db {
+            save_to_db(db, &new_config).map_err(|e| format!("保存配置失败: {}", e))?;
+        }
         let mut config = self.config.lock().unwrap();
         *config = new_config;
         Ok(())
@@ -52,8 +61,40 @@ impl AIConfigState {
 
 impl Default for AIConfigState {
     fn default() -> Self {
-        Self::new()
+        Self {
+            config: Arc::new(Mutex::new(AIConfig::new())),
+            db: None,
+        }
     }
+}
+
+/// 从数据库加载 AI 配置
+fn load_from_db(db: &Database) -> Result<AIConfig, anyhow::Error> {
+    db.with_connection(|conn| {
+        let json: Option<String> = conn
+            .query_row(
+                "SELECT value FROM ai_config WHERE key = 'ai_config'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+        match json {
+            Some(j) => Ok(serde_json::from_str(&j)?),
+            None => Ok(AIConfig::new()),
+        }
+    })
+}
+
+/// 保存 AI 配置到数据库
+fn save_to_db(db: &Database, config: &AIConfig) -> Result<(), anyhow::Error> {
+    let json = serde_json::to_string(config)?;
+    db.with_connection(|conn| {
+        conn.execute(
+            "INSERT OR REPLACE INTO ai_config (key, value, updated_at) VALUES ('ai_config', ?1, strftime('%s', 'now'))",
+            [&json],
+        )?;
+        Ok(())
+    })
 }
 
 /// 获取 AI 配置摘要
@@ -265,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_ai_config_state_creation() {
-        let state = AIConfigState::new();
+        let state = AIConfigState::default();
         let config = state.get();
         assert!(config.providers.is_empty());
         assert!(config.active_provider_id.is_none());
@@ -273,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_ai_config_state_update() {
-        let state = AIConfigState::new();
+        let state = AIConfigState::default();
         let mut new_config = AIConfig::new();
         let provider = AIProviderConfig::new(
             "test",

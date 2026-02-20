@@ -62,6 +62,14 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         tx.commit()?;
     }
 
+    // V6: AI 配置持久化
+    if version < 6 {
+        let tx = conn.unchecked_transaction()?;
+        create_ai_config_table(&tx)?;
+        set_schema_version(&tx, 6)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -597,6 +605,23 @@ fn migrate_v5(conn: &Connection) -> Result<()> {
 }
 
 // ============================================================================
+// V6: AI Config Persistence
+// ============================================================================
+
+/// 创建 ai_config 表 - 存储 AI 配置 JSON
+fn create_ai_config_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS ai_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    Ok(())
+}
+
+// ============================================================================
 // V2 Helpers
 // ============================================================================
 
@@ -668,7 +693,7 @@ mod tests {
 
         // 验证版本号
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     #[test]
@@ -733,7 +758,7 @@ mod tests {
         assert!(run_migrations(&conn).is_ok());
 
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     #[test]
