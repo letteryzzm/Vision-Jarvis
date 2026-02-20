@@ -5,7 +5,6 @@
 use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::{Utc, Timelike};
@@ -23,11 +22,12 @@ fn find_screen_device_index() -> Option<u32> {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     for line in stderr.lines() {
-        // 匹配 "[4] Capture screen 0" 格式
+        // 匹配 "[AVFoundation ...] [4] Capture screen 0" 格式
+        // 用 rfind 从右往左找，跳过 AVFoundation 前缀的括号
         if line.contains("Capture screen") {
-            if let Some(start) = line.find('[') {
-                if let Some(end) = line[start..].find(']') {
-                    if let Ok(idx) = line[start + 1..start + end].parse::<u32>() {
+            if let Some(end) = line.rfind(']') {
+                if let Some(start) = line[..end].rfind('[') {
+                    if let Ok(idx) = line[start + 1..end].parse::<u32>() {
                         return Some(idx);
                     }
                 }
@@ -52,16 +52,16 @@ pub struct ScreenRecorder {
     segment_duration_secs: u64,
     fps: u8,
     screen_device_index: u32,
-    is_recording: Arc<AtomicBool>,
     current_process: Arc<Mutex<Option<Child>>>,
 }
 
 impl ScreenRecorder {
     pub fn new(storage_path: PathBuf, segment_duration_secs: u64, fps: u8) -> AppResult<Self> {
         std::fs::create_dir_all(&storage_path)
-            .map_err(|e| AppError::screenshot(1, format!("创建录制存储目录失败: {}", e)))?;
+            .map_err(|e| AppError::capture(1, format!("创建录制存储目录失败: {}", e)))?;
 
-        let screen_device_index = find_screen_device_index().unwrap_or(0);
+        let screen_device_index = find_screen_device_index()
+            .ok_or_else(|| AppError::capture(1, "未找到屏幕捕获设备"))?;
         info!("Screen capture device index: {}", screen_device_index);
 
         Ok(Self {
@@ -69,7 +69,6 @@ impl ScreenRecorder {
             segment_duration_secs,
             fps,
             screen_device_index,
-            is_recording: Arc::new(AtomicBool::new(false)),
             current_process: Arc::new(Mutex::new(None)),
         })
     }
@@ -82,7 +81,7 @@ impl ScreenRecorder {
         let rec_dir = self.storage_path.join("recordings").join(&date_dir).join(period_dir);
 
         std::fs::create_dir_all(&rec_dir)
-            .map_err(|e| AppError::screenshot(1, format!("创建录制目录失败: {}", e)))?;
+            .map_err(|e| AppError::capture(1, format!("创建录制目录失败: {}", e)))?;
 
         let id = Uuid::new_v4();
         let filename = format!("{}_{}.mp4", now.format("%H-%M-%S"), id);
@@ -106,9 +105,8 @@ impl ScreenRecorder {
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| AppError::screenshot(20, format!("启动 FFmpeg 失败: {}", e)))?;
+            .map_err(|e| AppError::capture(20, format!("启动 FFmpeg 失败: {}", e)))?;
 
-        self.is_recording.store(true, Ordering::SeqCst);
         *self.current_process.lock().await = Some(child);
 
         Ok(output_path)
@@ -116,8 +114,6 @@ impl ScreenRecorder {
 
     /// 停止当前录制
     pub async fn stop(&self) -> AppResult<()> {
-        self.is_recording.store(false, Ordering::SeqCst);
-
         let mut guard = self.current_process.lock().await;
         if let Some(ref mut child) = *guard {
             // 发送 SIGTERM 让 FFmpeg 正常结束
@@ -140,23 +136,27 @@ impl ScreenRecorder {
 
     /// 等待当前分段自然结束（FFmpeg -t 超时退出）
     pub async fn wait_segment(&self) -> AppResult<()> {
-        let mut guard = self.current_process.lock().await;
-        if let Some(ref mut child) = *guard {
-            // 读取 stderr 用于诊断
-            let stderr_output = child.stderr.take()
-                .and_then(|stderr| {
-                    use std::io::Read;
-                    let mut buf = String::new();
-                    let mut reader = std::io::BufReader::new(stderr);
-                    reader.read_to_string(&mut buf).ok();
-                    Some(buf)
-                });
+        // 先取出 child 并释放 mutex，避免持锁期间阻塞 tokio 线程
+        let child = {
+            let mut guard = self.current_process.lock().await;
+            guard.take()
+        };
 
+        if let Some(mut child) = child {
+            // 先 wait（进程结束），再读 stderr（否则 read_to_string 会永久阻塞）
             let status = child.wait()
-                .map_err(|e| AppError::screenshot(21, format!("等待 FFmpeg 结束失败: {}", e)))?;
+                .map_err(|e| AppError::capture(21, format!("等待 FFmpeg 结束失败: {}", e)))?;
 
             if !status.success() {
-                let stderr_msg = stderr_output.as_deref().unwrap_or("(no stderr)");
+                let stderr_msg = child.stderr.take()
+                    .and_then(|stderr| {
+                        use std::io::Read;
+                        let mut buf = String::new();
+                        std::io::BufReader::new(stderr).read_to_string(&mut buf).ok();
+                        Some(buf)
+                    })
+                    .unwrap_or_default();
+
                 #[cfg(unix)]
                 {
                     use std::os::unix::process::ExitStatusExt;
@@ -170,7 +170,6 @@ impl ScreenRecorder {
                 error!("FFmpeg failed ({}): {}", status, stderr_msg);
             }
         }
-        *guard = None;
         Ok(())
     }
 
