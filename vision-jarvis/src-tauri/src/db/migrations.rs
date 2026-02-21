@@ -70,6 +70,14 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         tx.commit()?;
     }
 
+    // V7: projects.updated_at + activities.project_id
+    if version < 7 {
+        let tx = conn.unchecked_transaction()?;
+        migrate_v7(&tx)?;
+        set_schema_version(&tx, 7)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -622,6 +630,40 @@ fn create_ai_config_table(conn: &Connection) -> Result<()> {
 }
 
 // ============================================================================
+// V7: projects.updated_at + activities.project_id
+// ============================================================================
+
+/// V7 迁移：projects 添加 updated_at，activities 添加 project_id
+fn migrate_v7(conn: &Connection) -> Result<()> {
+    // projects 添加 updated_at 列
+    let has_updated_at: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name='updated_at'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)?;
+    if !has_updated_at {
+        conn.execute(
+            "ALTER TABLE projects ADD COLUMN updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))",
+            [],
+        )?;
+    }
+
+    // activities 添加 project_id 列（用于追踪活动-项目关联）
+    let has_project_id: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('activities') WHERE name='project_id'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)?;
+    if !has_project_id {
+        conn.execute("ALTER TABLE activities ADD COLUMN project_id TEXT", [])?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activities_project_id ON activities(project_id)",
+            [],
+        )?;
+    }
+
+    Ok(())
+}
+
+// ============================================================================
 // V2 Helpers
 // ============================================================================
 
@@ -693,7 +735,7 @@ mod tests {
 
         // 验证版本号
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     #[test]
@@ -758,7 +800,7 @@ mod tests {
         assert!(run_migrations(&conn).is_ok());
 
         let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     #[test]

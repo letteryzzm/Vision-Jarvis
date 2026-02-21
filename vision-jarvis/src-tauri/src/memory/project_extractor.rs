@@ -231,10 +231,7 @@ impl ProjectExtractor {
                         a.application, a.category, a.screenshot_ids, a.tags,
                         a.markdown_path, a.summary, a.indexed, a.created_at
                  FROM activities a
-                 WHERE a.id NOT IN (
-                     SELECT DISTINCT json_each.value
-                     FROM projects p, json_each(p.tags)
-                 )
+                 WHERE a.project_id IS NULL
                  ORDER BY a.start_time DESC
                  LIMIT 50"
             )?;
@@ -306,6 +303,10 @@ impl ProjectExtractor {
                     project.created_at,
                 ],
             )?;
+            conn.execute(
+                "UPDATE activities SET project_id = ?1 WHERE id = ?2",
+                rusqlite::params![&project.id, &activity.id],
+            )?;
             Ok(())
         })?;
 
@@ -326,6 +327,10 @@ impl ProjectExtractor {
                      updated_at = strftime('%s', 'now')
                  WHERE id = ?2",
                 rusqlite::params![activity.start_time, project_id],
+            )?;
+            conn.execute(
+                "UPDATE activities SET project_id = ?1 WHERE id = ?2",
+                rusqlite::params![project_id, &activity.id],
             )?;
             Ok(())
         })
