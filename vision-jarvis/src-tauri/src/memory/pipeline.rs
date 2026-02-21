@@ -152,6 +152,7 @@ impl PipelineScheduler {
             let mut summary_tick = interval(summary_check_interval);
             // 记录上次生成日总结的日期，避免重复生成
             let mut last_summary_date: Option<String> = None;
+            let mut warned_no_analyzer = false;
 
             loop {
                 tokio::select! {
@@ -167,6 +168,9 @@ impl PipelineScheduler {
                                 }
                                 Err(e) => error!("Recording analysis failed: {}", e),
                             }
+                        } else if !warned_no_analyzer {
+                            warn!("[Pipeline] AI 未连接，录制分析已跳过。请先配置 AI 提供商。");
+                            warned_no_analyzer = true;
                         }
                     }
                     _ = grouping_tick.tick() => {

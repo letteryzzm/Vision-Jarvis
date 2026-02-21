@@ -182,8 +182,13 @@ pub async fn set_active_ai_provider(
             Ok(_) => {
                 // 自动连接到管道
                 if let Some(provider) = state.get_active_provider_config() {
-                    if let Ok(client) = AIClient::new(provider) {
-                        app_state.pipeline.connect_ai(client).await;
+                    match AIClient::new(provider) {
+                        Ok(client) => {
+                            app_state.pipeline.connect_ai(client).await;
+                        }
+                        Err(e) => {
+                            log::warn!("[AIConfig] 创建 AI 客户端失败，管道未连接: {}", e);
+                        }
                     }
                 }
                 Ok(ApiResponse::success(true))
