@@ -78,14 +78,24 @@
 
 ---
 
-### `ai/` — AI 客户端
+### `ai/` — AI 客户端（Provider 工厂模式）
 
 | 文件 | 功能 |
 |------|------|
-| `mod.rs` | `AIClient` 公共接口 |
-| `client.rs` | HTTP 客户端实现，调用 AI API |
-| `provider.rs` | AI 提供商配置（Claude、OpenAI 等） |
+| `mod.rs` | 模块声明与公共接口导出 |
+| `client.rs` | `AIClient` facade，委托给 `Box<dyn AIProvider>` |
+| `traits.rs` | `AIProvider` async trait 定义（send_text / analyze_video / analyze_image / test_connection） |
+| `factory.rs` | `create_provider()` 工厂函数，根据 `ProviderType` 创建具体 Provider |
+| `provider.rs` | `AIProviderConfig`、`ProviderType` 枚举、`AIConfig` 配置管理 |
 | `prompt.rs` | Prompt 模板管理 |
+| `frame_extractor.rs` | 视频帧提取工具，使用 ffmpeg 为不支持原生视频的 Provider 预处理 |
+| `providers/mod.rs` | 各供应商 Provider 导出 |
+| `providers/openai.rs` | OpenAI 原生 Provider（`/v1/chat/completions`，Bearer auth） |
+| `providers/claude.rs` | Anthropic Claude Provider（`/v1/messages`，`x-api-key` auth，帧提取视频处理） |
+| `providers/gemini.rs` | Google Gemini Provider（`/v1beta/models/{m}:generateContent`，原生 `inline_data` 视频） |
+| `providers/qwen.rs` | 阿里云 Qwen Provider（DashScope OpenAI 兼容格式） |
+| `providers/aihubmix.rs` | AIHubMix 代理 Provider（OpenAI 兼容） |
+| `providers/openrouter.rs` | OpenRouter 代理 Provider（OpenAI 兼容 + X-Title/HTTP-Referer 头） |
 
 ---
 
@@ -170,7 +180,7 @@
 | `docs/backend/services/memory-service.md` | `memory/pipeline.rs` + 各子模块 | ⚠️ 文档描述旧架构，需更新 |
 | `docs/backend/services/notification-service.md` | `notification/` | ⚠️ 缺少 V3 主动建议规则 |
 | `docs/backend/services/screenshot-service.md` | `capture/` | ✅ 基本对应 |
-| `docs/backend/services/ai-service.md` | `ai/` | ✅ 基本对应 |
+| `docs/backend/services/ai-service.md` | `ai/` | ✅ 已更新至 Provider 工厂模式 |
 | `docs/api/endpoints/ai-config.md` | `commands/ai_config.rs` | ✅ 对应 |
 | `docs/api/endpoints/storage.md` | `commands/storage.rs` | ✅ 对应 |
 | `docs/api/endpoints/commands.md` | `commands/` 全部 | ⚠️ 缺少 memory、settings、window 命令 |
