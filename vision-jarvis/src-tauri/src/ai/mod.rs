@@ -1,15 +1,14 @@
-/// AI 集成模块
-///
-/// 提供 AI 提供商管理、API 客户端、Prompt 模板和图像分析功能
-
-// 新的模块
 pub mod provider;
 pub mod client;
 pub mod prompt;
+pub mod traits;
+pub mod providers;
+pub mod factory;
+pub mod frame_extractor;
 
-// 重新导出常用类型
-pub use provider::{AIProviderConfig, AIConfig, ModelInfo, get_supported_models};
-pub use client::{AIClient, AIMessage, AIContent};
+pub use provider::{AIProviderConfig, AIConfig, ModelInfo, ProviderType, get_supported_models};
+pub use client::AIClient;
+pub use traits::AIProvider;
 pub use prompt::{
     PromptTemplate, PromptBuilder,
     screenshot_analysis_prompt,
