@@ -5,6 +5,18 @@
 use serde::{Deserialize, Serialize};
 use crate::error::{AppError, AppResult};
 
+/// AI 供应商类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum ProviderType {
+    #[default]
+    OpenAI,
+    Claude,
+    Gemini,
+    Qwen,
+    AIHubMix,
+    OpenRouter,
+}
+
 /// AI 提供商配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AIProviderConfig {
@@ -28,6 +40,10 @@ pub struct AIProviderConfig {
 
     /// 是否为当前激活的提供商
     pub is_active: bool,
+
+    /// 供应商类型（决定使用哪种 API 格式）
+    #[serde(default)]
+    pub provider_type: ProviderType,
 }
 
 impl AIProviderConfig {
@@ -47,6 +63,15 @@ impl AIProviderConfig {
             model: model.into(),
             enabled: true,
             is_active: false,
+            provider_type: ProviderType::default(),
+        }
+    }
+
+    /// 设置供应商类型（builder 模式）
+    pub fn with_provider_type(self, provider_type: ProviderType) -> Self {
+        Self {
+            provider_type,
+            ..self
         }
     }
 
