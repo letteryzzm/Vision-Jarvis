@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use tokio::sync::Mutex;
-use chrono::{Utc, Timelike};
+use chrono::{Local, Timelike};
 use log::info;
 use uuid::Uuid;
 
@@ -64,7 +64,7 @@ impl ScreenRecorder {
     }
 
     pub async fn start_segment(&self) -> AppResult<PathBuf> {
-        let now = Utc::now();
+        let now = Local::now();
         let dir = self.storage_path
             .join("recordings")
             .join(now.format("%Y%m%d").to_string())

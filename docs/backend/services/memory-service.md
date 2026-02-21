@@ -42,7 +42,7 @@ FFmpeg `avfoundation` 连续录制 macOS 屏幕。
 
 - 编码：`libx264 -preset ultrafast -crf 30`，2fps
 - 分段时长：`capture_interval_seconds`（默认 60s，范围 30-300s）
-- 存储路径：`recordings/YYYYMMDD/period/HH-MM-SS_{uuid}.mp4`
+- 存储路径：`recordings/YYYYMMDD/period/HH-MM-SS_{uuid}.mp4`（使用本地时间，非 UTC）
 - 分段完成后写入 `recordings` 表（`analyzed=0`）
 
 ### Layer 1: AI 视频分析 (`screenshot_analyzer.rs`)
