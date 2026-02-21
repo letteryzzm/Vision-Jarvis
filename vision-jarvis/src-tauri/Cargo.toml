@@ -43,7 +43,8 @@ secrecy = { version = "0.8", features = ["serde"] }
 dirs = "5"
 libc = "0.2"
 sha2 = "0.10"
+async-trait = "0.1"
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"
 
