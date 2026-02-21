@@ -8,7 +8,6 @@
 /// - habits: 习惯模式
 /// - summaries: 日/周/月总结
 /// - memory_files / memory_chunks: 向量索引
-/// - short_term_memories: V1短期记忆（仍在使用）
 /// - settings: 应用配置
 
 use serde::{Deserialize, Serialize};
@@ -21,29 +20,6 @@ pub enum ActivityCategory {
     Entertainment,
     Communication,
     Other,
-}
-
-/// 短期记忆
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShortTermMemory {
-    pub id: String,
-    pub date: String,             // YYYY-MM-DD
-    pub time_start: String,       // HH:MM
-    pub time_end: String,         // HH:MM
-    pub period: Period,           // 时段
-    pub activity: String,         // 活动名称
-    pub summary: Option<String>,  // AI 生成的总结
-    pub screenshot_ids: Vec<String>, // 关联的截图 ID
-    pub created_at: i64,          // Unix timestamp
-}
-
-/// 时段分类
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Period {
-    Morning,   // 00:00-12:00
-    Afternoon, // 12:00-18:00
-    Evening,   // 18:00-24:00
 }
 
 /// 活动会话 - 一段时间内用户的连贯活动

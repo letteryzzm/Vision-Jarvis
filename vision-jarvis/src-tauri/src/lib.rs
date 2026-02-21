@@ -150,9 +150,14 @@ pub fn run() {
             // 录制相关
             commands::recording::get_scheduler_status,
             // 记忆相关
+            commands::memory::get_activities,
+            commands::memory::get_activity_detail,
+            commands::memory::get_projects,
+            commands::memory::get_habits,
+            commands::memory::get_summary,
+            commands::memory::get_recording_stats,
             commands::memory::search_memories,
-            commands::memory::get_memories_by_date,
-            commands::memory::generate_memory,
+            commands::memory::trigger_daily_summary,
             // 通知相关
             commands::notification::get_pending_notifications,
             commands::notification::dismiss_notification,
