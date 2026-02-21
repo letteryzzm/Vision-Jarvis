@@ -1,7 +1,7 @@
 # Vision-Jarvis 主动式AI记忆系统 - 实现计划
 
 **日期**: 2026-02-16
-**状态**: Phase 1 ✅ Phase 2 🔧进行中，视频录制+AI分析已接入
+**状态**: Phase 1 ✅ Phase 2 ✅ Phase 3 部分完成（习惯衰减+Markdown同步已实现）
 
 ---
 
@@ -130,21 +130,22 @@ screenshot_analyses表                   ↓
 - [x] 管道调度器V3（pipeline.rs 集成所有组件）
 - [x] 编译验证通过
 
-### Phase 2: AI接入与调优 🔧 进行中
+### Phase 2: AI接入与调优 ✅ 已完成
 
 - [x] 将录制分析器接入实际AI API（Gemini inline_data 格式）
 - [x] 视频分析Prompt（录制分段直接发送，不提取帧）
 - [x] AIClient 支持 InlineData 格式（video/mp4）
-- [ ] 活动分组器适配 recordings 表（当前仍查 screenshots）
-- [ ] summary_generator / project_extractor 动态接入 AI 客户端
+- [x] 活动分组器适配 recordings 表
+- [x] summary_generator / markdown_generator 动态接入 AI 客户端
+- [x] connect_ai 传播到所有需要 AI 的组件
 - [ ] 实现Embedding生成（用于语义搜索和项目匹配）
-- [ ] 实现AI驱动的日总结
+- [x] 实现AI驱动的日总结
 
-### Phase 3: 行为模式学习
+### Phase 3: 行为模式学习 🔧 进行中
 
 - [ ] 调优习惯检测算法参数
-- [ ] 实现习惯Markdown自动更新
-- [ ] 添加习惯衰减机制（长时间未出现降低置信度）
+- [x] 实现习惯Markdown自动更新（新建+更新+衰减均同步）
+- [x] 添加习惯衰减机制（长时间未出现降低置信度）
 - [ ] 实现习惯可视化数据导出
 
 ### Phase 4: 主动建议系统
@@ -191,4 +192,4 @@ screenshot_analyses表                   ↓
 
 ---
 
-**最后更新**: 2026-02-18 (视频录制+AI分析已接入，活动分组待适配)
+**最后更新**: 2026-02-21 (Phase 2完成，V1遗留代码已清理，前端命令接口已重写)

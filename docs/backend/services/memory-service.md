@@ -1,7 +1,7 @@
 # 记忆服务 (Memory System V3)
 
-> **最后更新**: 2026-02-18
-> **版本**: v3.1（视频录制 + AI分析已接入）
+> **最后更新**: 2026-02-21
+> **版本**: v3.2（AI 传播链路修复 + 前端命令接口重写 + V1 清理）
 > **架构**: 主动式 AI 记忆系统（管道调度）
 
 ---
@@ -82,8 +82,6 @@ FFmpeg `avfoundation` 连续录制 macOS 屏幕。
 
 **输出**：`ActivitySession` → `activities` 表 + Markdown 文件
 
-> ⚠️ **已知缺口**：`get_ungrouped_screenshots()` 仍查 `screenshots` 表，需适配 `recordings`
-
 ### Layer 2.5: 项目提取 (`project_extractor.rs`)
 
 分组后立即执行，从活动中识别项目。
@@ -137,7 +135,7 @@ let pipeline = PipelineScheduler::new(db, storage_root, enable_ai)?;
 pipeline.connect_ai(ai_client).await;
 ```
 
-`connect_ai` 创建 `ScreenshotAnalyzer` 并存入 `Arc<RwLock<Option<...>>>`，分析 tick 检查是否有 analyzer 可用。
+`connect_ai` 创建 `ScreenshotAnalyzer` 并存入 `Arc<RwLock<Option<...>>>`，同时将 AI client 传播到 `SummaryGenerator` 和 `MarkdownGenerator`（均通过 `set_ai_client()` 动态注入）。分析 tick 检查是否有 analyzer 可用。
 
 ---
 
@@ -145,10 +143,10 @@ pipeline.connect_ai(ai_client).await;
 
 | 表名 | 版本 | 用途 |
 |------|------|------|
-| `recordings` | V4 | 视频录制分段（path, start/end_time, fps, analyzed） |
-| `screenshot_analyses` | V3 | AI 分析结果（application, activity_type, tags, score） |
-| `activities` | V2 | 聚合后的活动会话 |
-| `projects` | V3 | 自动识别的项目 |
+| `recordings` | V4 | 视频录制分段（path, start/end_time, fps, analyzed, activity_id） |
+| `screenshot_analyses` | V3+V5 | AI 分析结果（application, activity_type, tags, score, accomplishments） |
+| `activities` | V2+V7 | 聚合后的活动会话（V7: 新增 project_id） |
+| `projects` | V3+V7 | 自动识别的项目（V7: 新增 updated_at） |
 | `habits` | V3 | 检测到的习惯模式 |
 | `summaries` | V3 | 日/周/月总结 |
 | `memory_chunks` | V2 | Markdown 文本分块（用于搜索） |
@@ -160,10 +158,9 @@ pipeline.connect_ai(ai_client).await;
 
 | 缺口 | 说明 | 优先级 |
 |------|------|--------|
-| activity_grouper 数据源 | 仍查 `screenshots` 表，需改为 `recordings` + `screenshot_analyses` | 高 |
-| summary/project AI 客户端 | 初始化时传 `None`，`connect_ai` 未同步更新 | 中 |
 | 周/月总结调度 | 只有日总结有自动触发 | 低 |
 | Embedding 生成 | index_manager 中已禁用 | 低 |
+| get_related_project_ids | summary_generator 中空实现 | 低 |
 
 ---
 
@@ -171,9 +168,11 @@ pipeline.connect_ai(ai_client).await;
 
 | 模块 | 说明 |
 |------|------|
-| `short_term.rs` | 短期记忆聚合（已被 activity_grouper 替代） |
-| `long_term.rs` | 长期记忆总结（已被 summary_generator 替代） |
-| `scheduler.rs` | 旧版调度器（已被 pipeline.rs 替代） |
+| `short_term.rs` | ~~短期记忆聚合~~ **已删除**（被 activity_grouper 替代） |
+| `ai/analyzer.rs.bak` | ~~废弃备份~~ **已删除** |
+| `ai/embeddings.rs.bak` | ~~废弃备份~~ **已删除** |
+| `ai/providers.rs.bak` | ~~废弃备份~~ **已删除** |
+| V1 前端命令 | ~~查 short_term_memories 的旧命令~~ **已重写为 V3 命令** |
 
 ---
 
