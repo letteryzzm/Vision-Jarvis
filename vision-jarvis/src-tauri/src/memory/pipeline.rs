@@ -56,7 +56,6 @@ impl PipelineScheduler {
         let markdown_gen = Arc::new(MarkdownGenerator::new(GeneratorConfig {
             storage_root: storage_root.clone(),
             enable_ai_summary,
-            openai_api_key: None,
         }));
 
         let index_manager = Arc::new(IndexManager::new(
@@ -117,7 +116,11 @@ impl PipelineScheduler {
         let mut guard = self.screenshot_analyzer.write().await;
         *guard = Some(Arc::new(analyzer));
 
-        info!("[Pipeline] AI客户端已连接，录制分析已启用");
+        // 传播 AI client 到 SummaryGenerator 和 MarkdownGenerator
+        self.summary_generator.set_ai_client(Arc::clone(&ai_client)).await;
+        self.markdown_gen.set_ai_client(Arc::clone(&ai_client)).await;
+
+        info!("[Pipeline] AI客户端已连接，录制分析/总结/Markdown生成已启用");
     }
 
     /// 检查AI是否已连接

@@ -10,8 +10,11 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::fs;
+use tokio::sync::RwLock;
 
+use crate::ai::AIClient;
 use crate::db::schema::{ActivitySession, ScreenshotAnalysisSummary, ActivityCategory};
 
 /// Markdown生成器配置
@@ -21,8 +24,6 @@ pub struct GeneratorConfig {
     pub storage_root: PathBuf,
     /// 是否启用AI总结
     pub enable_ai_summary: bool,
-    /// OpenAI API Key
-    pub openai_api_key: Option<String>,
 }
 
 impl Default for GeneratorConfig {
@@ -30,7 +31,6 @@ impl Default for GeneratorConfig {
         Self {
             storage_root: PathBuf::from("./memory"),
             enable_ai_summary: false,
-            openai_api_key: None,
         }
     }
 }
@@ -38,6 +38,7 @@ impl Default for GeneratorConfig {
 /// Markdown生成器
 pub struct MarkdownGenerator {
     config: GeneratorConfig,
+    ai_client: Arc<RwLock<Option<Arc<AIClient>>>>,
 }
 
 /// YAML frontmatter结构
@@ -65,7 +66,16 @@ struct ScreenshotEntry {
 
 impl MarkdownGenerator {
     pub fn new(config: GeneratorConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            ai_client: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    /// 动态注入 AI 客户端
+    pub async fn set_ai_client(&self, client: Arc<AIClient>) {
+        let mut guard = self.ai_client.write().await;
+        *guard = Some(client);
     }
 
     /// 生成Markdown文件
@@ -75,11 +85,19 @@ impl MarkdownGenerator {
 
         // 2. 生成AI总结(如果启用)
         let summary = if self.config.enable_ai_summary {
-            self.generate_ai_summary(activity).await
-                .unwrap_or_else(|e| {
-                    log::warn!("AI summary generation failed: {}, using template", e);
-                    self.generate_template_summary(activity)
-                })
+            let ai_guard = self.ai_client.read().await;
+            if let Some(ref client) = *ai_guard {
+                let prompt = self.build_summary_prompt(activity);
+                match client.send_text(&prompt).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::warn!("AI summary generation failed: {}, using template", e);
+                        self.generate_template_summary(activity)
+                    }
+                }
+            } else {
+                self.generate_template_summary(activity)
+            }
         } else {
             self.generate_template_summary(activity)
         };
@@ -116,47 +134,6 @@ impl MarkdownGenerator {
                 }
             }).collect(),
         }
-    }
-
-    /// 生成AI总结
-    async fn generate_ai_summary(&self, activity: &ActivitySession) -> Result<String> {
-        let api_key = self.config.openai_api_key.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("OpenAI API key not configured"))?;
-
-        // 构建prompt
-        let prompt = self.build_summary_prompt(activity);
-
-        // 调用OpenAI API
-        let client = reqwest::Client::new();
-        let response = client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&serde_json::json!({
-                "model": "gpt-4",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "你是一个专业的活动总结助手。请根据用户的活动截图分析，生成简洁、准确的活动总结。"
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.7,
-                "max_tokens": 500
-            }))
-            .send()
-            .await?;
-
-        let result: serde_json::Value = response.json().await?;
-
-        let summary = result["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Invalid API response format"))?
-            .to_string();
-
-        Ok(summary)
     }
 
     /// 构建总结prompt
@@ -356,7 +333,6 @@ mod tests {
         let config = GeneratorConfig {
             storage_root: temp_dir.path().to_path_buf(),
             enable_ai_summary: false,
-            openai_api_key: None,
         };
 
         let generator = MarkdownGenerator::new(config);
@@ -383,7 +359,6 @@ mod tests {
         let config = GeneratorConfig {
             storage_root: temp_dir.path().to_path_buf(),
             enable_ai_summary: false,
-            openai_api_key: None,
         };
 
         let generator = MarkdownGenerator::new(config);

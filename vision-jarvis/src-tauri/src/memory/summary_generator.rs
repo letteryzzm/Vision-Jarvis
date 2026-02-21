@@ -9,6 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use log::{info, warn};
+use tokio::sync::RwLock;
 
 use crate::ai::AIClient;
 use crate::db::Database;
@@ -34,7 +35,7 @@ impl Default for SummaryConfig {
 
 /// 总结生成器
 pub struct SummaryGenerator {
-    ai_client: Option<Arc<AIClient>>,
+    ai_client: Arc<RwLock<Option<Arc<AIClient>>>>,
     db: Arc<Database>,
     config: SummaryConfig,
 }
@@ -45,7 +46,17 @@ impl SummaryGenerator {
         db: Arc<Database>,
         config: SummaryConfig,
     ) -> Self {
-        Self { ai_client, db, config }
+        Self {
+            ai_client: Arc::new(RwLock::new(ai_client)),
+            db,
+            config,
+        }
+    }
+
+    /// 动态注入 AI 客户端
+    pub async fn set_ai_client(&self, client: Arc<AIClient>) {
+        let mut guard = self.ai_client.write().await;
+        *guard = Some(client);
     }
 
     /// 生成日总结
@@ -59,7 +70,8 @@ impl SummaryGenerator {
         info!("为 {} 生成日总结，共 {} 个活动", date, activities.len());
 
         let content = if self.config.enable_ai {
-            if let Some(ref client) = self.ai_client {
+            let ai_guard = self.ai_client.read().await;
+            if let Some(ref client) = *ai_guard {
                 match self.generate_ai_daily_summary(client, &activities).await {
                     Ok(c) => c,
                     Err(e) => {
