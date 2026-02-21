@@ -343,7 +343,7 @@ impl HabitDetector {
         let existing = self.get_habit_by_id(&habit.id)?;
         let now = Utc::now().timestamp();
 
-        if let Some(_existing) = existing {
+        if let Some(existing) = existing {
             // 更新现有习惯
             self.db.with_connection(|conn| {
                 conn.execute(
@@ -359,8 +359,21 @@ impl HabitDetector {
                         &habit.id,
                     ],
                 )?;
-                Ok(false)
-            })
+                Ok(())
+            })?;
+
+            // 同步 Markdown（使用更新后的数据）
+            let updated = Habit {
+                confidence: habit.confidence,
+                occurrence_count: habit.occurrence_count,
+                last_occurrence: habit.last_occurrence,
+                updated_at: now,
+                ..existing
+            };
+            let content = self.generate_habit_markdown(&updated);
+            self.write_file(&updated.markdown_path, &content)?;
+
+            Ok(false)
         } else {
             // 创建新习惯
             self.db.with_connection(|conn| {
@@ -434,6 +447,16 @@ impl HabitDetector {
                     )?;
                     Ok(())
                 })?;
+
+                // 同步 Markdown
+                let updated = Habit {
+                    confidence: new_confidence,
+                    updated_at: now,
+                    ..habit.clone()
+                };
+                let content = self.generate_habit_markdown(&updated);
+                let _ = self.write_file(&updated.markdown_path, &content);
+
                 result.decayed += 1;
                 info!("习惯置信度衰减: {} {:.0}% → {:.0}%",
                     habit.pattern_name, habit.confidence * 100.0, new_confidence * 100.0);
