@@ -15,6 +15,7 @@ pub enum ProviderType {
     Qwen,
     AIHubMix,
     OpenRouter,
+    SiliconFlow,
 }
 
 /// AI 提供商配置
@@ -242,6 +243,15 @@ pub fn get_supported_models() -> Vec<ModelInfo> {
             provider: "Step AI".to_string(),
             is_free: true,
             description: "Step AI 免费模型".to_string(),
+        },
+
+        // SiliconFlow 系列
+        ModelInfo {
+            id: "Pro/zai-org/GLM-4.7".to_string(),
+            name: "GLM-4.7 (SiliconFlow)".to_string(),
+            provider: "SiliconFlow".to_string(),
+            is_free: false,
+            description: "SiliconFlow 托管 GLM-4.7".to_string(),
         },
     ]
 }

@@ -12,5 +12,6 @@ pub fn create_provider(config: AIProviderConfig) -> AppResult<Box<dyn AIProvider
         ProviderType::Qwen => Ok(Box::new(QwenProvider::new(config)?)),
         ProviderType::AIHubMix => Ok(Box::new(AIHubMixProvider::new(config)?)),
         ProviderType::OpenRouter => Ok(Box::new(OpenRouterProvider::new(config)?)),
+        ProviderType::SiliconFlow => Ok(Box::new(SiliconFlowProvider::new(config)?)),
     }
 }
