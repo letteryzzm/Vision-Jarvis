@@ -52,6 +52,8 @@ export interface ScreenshotInfo {
   analyzed: boolean
 }
 
+export type ProviderType = 'OpenAI' | 'Claude' | 'Gemini' | 'Qwen' | 'AIHubMix' | 'OpenRouter' | 'SiliconFlow'
+
 export interface AIProviderConfig {
   id: string
   name: string
@@ -60,6 +62,8 @@ export interface AIProviderConfig {
   model: string
   enabled: boolean
   is_active: boolean
+  provider_type: ProviderType
+  video_model?: string | null
 }
 
 export interface AIConfig {
