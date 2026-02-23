@@ -45,6 +45,7 @@ libc = "0.2"
 sha2 = "0.10"
 async-trait = "0.1"
 tempfile = "3"
+rdev = "0.5"
 
 [dev-dependencies]
 

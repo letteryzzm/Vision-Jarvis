@@ -66,6 +66,15 @@ pub struct AppSettings {
 
     /// OpenAI API 密钥（已废弃，使用 AI 配置系统）
     pub openai_api_key: Option<String>,
+
+    // ========== Idle 检测 ==========
+
+    /// 鼠标 idle 回归提醒：是否启用
+    pub idle_reminder_enabled: bool,
+    /// 鼠标 idle 阈值（秒），超过此时长才标记为 idle
+    pub idle_threshold_secs: u64,
+    /// 最小触发时长（秒），idle 时长小于此值不发送提醒
+    pub idle_min_trigger_secs: u64,
 }
 
 impl Default for AppSettings {
@@ -116,6 +125,11 @@ impl Default for AppSettings {
             screen_inactivity_message: String::new(), // 空 = AI 智能建议
 
             openai_api_key: None,
+
+            // Idle 检测
+            idle_reminder_enabled: true,
+            idle_threshold_secs: 300,
+            idle_min_trigger_secs: 60,
         }
     }
 }

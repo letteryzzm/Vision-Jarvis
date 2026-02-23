@@ -4,3 +4,4 @@
 
 pub mod scheduler;
 pub mod screen_recorder;
+pub mod idle_watcher;

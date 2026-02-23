@@ -10,6 +10,7 @@ pub mod rules;
 pub mod context;
 pub mod delivery;
 pub mod smart;
+pub mod return_advisor;
 
 /// 通知类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -30,6 +31,8 @@ pub enum NotificationType {
     SmartBreakReminder,
     /// V3: 项目进度提醒
     ProjectProgressReminder,
+    /// 用户回归提醒（鼠标 idle 后回来）
+    ReturnReminder,
     /// 自定义通知
     Custom,
 }

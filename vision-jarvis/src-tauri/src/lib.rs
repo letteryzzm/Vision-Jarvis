@@ -142,6 +142,61 @@ pub fn run() {
                 });
             }
 
+            // 启动鼠标 Idle 检测 + 回归提醒
+            {
+                let idle_settings = state.settings.get();
+                if idle_settings.idle_reminder_enabled {
+                    let db = state.db.clone();
+                    let ai_state = app.state::<AIConfigState>();
+                    let provider_config = ai_state.get_active_provider_config();
+                    let app_handle_idle = app.handle().clone();
+                    let threshold = idle_settings.idle_threshold_secs;
+                    let min_trigger = idle_settings.idle_min_trigger_secs;
+
+                    std::thread::spawn(move || {
+                        let rt = tokio::runtime::Runtime::new()
+                            .expect("Failed to create tokio runtime for IdleWatcher");
+
+                        let advisor = std::sync::Arc::new(
+                            crate::notification::return_advisor::ReturnAdvisor::new(
+                                db,
+                                provider_config,
+                            )
+                        );
+
+                        let watcher = crate::capture::idle_watcher::IdleWatcher::new(
+                            threshold,
+                            min_trigger,
+                        );
+
+                        watcher.start(move |idle_secs| {
+                            let advisor = advisor.clone();
+                            let app = app_handle_idle.clone();
+                            rt.spawn(async move {
+                                if let Some(msg) = advisor.generate_return_hint(idle_secs).await {
+                                    let notif = crate::notification::Notification::new(
+                                        crate::notification::NotificationType::ReturnReminder,
+                                        crate::notification::NotificationPriority::Normal,
+                                        "欢迎回来".to_string(),
+                                        msg,
+                                    );
+                                    let _ = crate::notification::delivery::send_system_notification(
+                                        &app, &notif,
+                                    );
+                                    let _ = crate::notification::delivery::emit_notification_event(
+                                        &app, &notif,
+                                    );
+                                }
+                            });
+                        });
+                    });
+
+                    info!("IdleWatcher started (threshold={}s, min_trigger={}s)", threshold, min_trigger);
+                } else {
+                    info!("IdleWatcher disabled in settings");
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -193,6 +248,20 @@ pub fn run() {
             commands::window::expand_to_asker,
             commands::window::collapse_to_ball,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<AppState>();
+                let scheduler = state.scheduler.clone();
+                tauri::async_runtime::block_on(async {
+                    let mut s = scheduler.lock().await;
+                    if s.is_running().await {
+                        info!("App exiting, stopping recorder...");
+                        let _ = s.stop().await;
+                        info!("Recorder stopped");
+                    }
+                });
+            }
+        });
 }

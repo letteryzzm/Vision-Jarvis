@@ -28,6 +28,7 @@ import Asker from '../components/FloatingBall/Asker.astro';
 
   <script>
     import { invoke } from '@tauri-apps/api/core';
+    import { listen } from '@tauri-apps/api/event';
     import { $settings, loadSettings, toggleMemory } from '../stores/settingsStore';
     import { WINDOW_SIZES, DELAYS } from '../lib/constants';
 
@@ -133,6 +134,62 @@ import Asker from '../components/FloatingBall/Asker.astro';
     // ========================================
     // 事件处理 - 在 DOMContentLoaded 中注册
     // ========================================
+
+    // 回归提醒 Toast
+    function showReturnToast(title: string, message: string) {
+      // 复用已有 toast 容器，或动态创建
+      let container = document.getElementById('return-toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'return-toast-container';
+        container.style.cssText = [
+          'position:fixed',
+          'bottom:16px',
+          'right:16px',
+          'z-index:9999',
+          'display:flex',
+          'flex-direction:column',
+          'gap:8px',
+          'pointer-events:none',
+        ].join(';');
+        document.body.appendChild(container);
+      }
+
+      const toast = document.createElement('div');
+      toast.style.cssText = [
+        'background:rgba(30,30,40,0.92)',
+        'color:#fff',
+        'border-radius:12px',
+        'padding:12px 16px',
+        'max-width:240px',
+        'font-size:13px',
+        'line-height:1.5',
+        'box-shadow:0 4px 16px rgba(0,0,0,0.3)',
+        'border:1px solid rgba(255,255,255,0.08)',
+        'opacity:0',
+        'transform:translateY(8px)',
+        'transition:opacity 300ms ease,transform 300ms ease',
+        'pointer-events:auto',
+      ].join(';');
+
+      toast.innerHTML = `<div style="font-weight:600;margin-bottom:4px;">${title}</div><div>${message}</div>`;
+      container.appendChild(toast);
+
+      // 触发进入动画
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          toast.style.opacity = '1';
+          toast.style.transform = 'translateY(0)';
+        });
+      });
+
+      // 5 秒后淡出移除
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
 
     // 暂时不注册事件，等待 DOMContentLoaded
 
@@ -301,6 +358,20 @@ import Asker from '../components/FloatingBall/Asker.astro';
             updateHeaderToggleUI(settings.memory_enabled);
           }
         });
+
+        // ========================================
+        // 回归提醒：监听 notification:new 事件
+        // ========================================
+
+        listen<{ id: string; title: string; message: string; type: string }>(
+          'notification:new',
+          (event) => {
+            const { title, message, type } = event.payload;
+            if (type === 'ReturnReminder') {
+              showReturnToast(title, message);
+            }
+          }
+        );
 
       }, DELAYS.initHover);
     });
