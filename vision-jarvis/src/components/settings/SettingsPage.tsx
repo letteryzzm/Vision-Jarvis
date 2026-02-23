@@ -7,6 +7,7 @@ import {
 } from '@/stores/settingsStore'
 import { TauriAPI } from '@/lib/tauri-api'
 import type { AIConfig, AIProviderConfig } from '@/lib/tauri-api'
+import { PROVIDER_REGISTRY } from '@/lib/provider-registry'
 import { Toggle } from '@/components/ui/Toggle'
 import { showNotification } from '@/lib/utils'
 
@@ -42,33 +43,26 @@ export function SettingsPage() {
   const settings = useStore($settings)
   const [tab, setTab] = useState<'general' | 'ai'>('general')
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
-  const [openaiKey, setOpenaiKey] = useState('')
-  const [openaiModel, setOpenaiModel] = useState('gpt-4o')
-  const [claudeKey, setClaudeKey] = useState('')
-  const [claudeModel, setClaudeModel] = useState('claude-sonnet-4-5-20250514')
-  const [customUrl, setCustomUrl] = useState('')
-  const [customKey, setCustomKey] = useState('')
-  const [customModel, setCustomModel] = useState('')
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState('')
+  const [videoModel, setVideoModel] = useState('')
   const debounceRefs = useRef<Record<string, number>>({})
 
   useEffect(() => {
     loadSettings()
     TauriAPI.getAIConfig().then(cfg => {
       setAiConfig(cfg)
-      cfg.providers.forEach(p => {
-        if (p.id === 'openai' || p.name === 'OpenAI') { setOpenaiKey(p.api_key); setOpenaiModel(p.model) }
-        else if (p.id === 'claude' || p.name === 'Claude') { setClaudeKey(p.api_key); setClaudeModel(p.model) }
-        else { setCustomUrl(p.api_base_url); setCustomKey(p.api_key); setCustomModel(p.model) }
-      })
       if (cfg.active_provider_id) {
         const active = cfg.providers.find(p => p.id === cfg.active_provider_id)
-        if (active) setSelectedProvider(
-          active.id === 'openai' || active.name === 'OpenAI' ? 'openai' :
-          active.id === 'claude' || active.name === 'Claude' ? 'claude' : 'custom'
-        )
+        if (active) {
+          setSelectedProviderId(active.id)
+          setApiKey(active.api_key)
+          setModel(active.model)
+          setVideoModel((active as AIProviderConfig).video_model ?? '')
+        }
       }
-    }).catch(console.error)
+    }).catch(() => {})
   }, [])
 
   function debounce(key: string, fn: () => void, ms = 500) {
@@ -86,20 +80,37 @@ export function SettingsPage() {
     catch (err) { showNotification('保存失败: ' + err, 'error') }
   }
 
+  function handleProviderSelect(registryId: string) {
+    setSelectedProviderId(registryId)
+    const entry = PROVIDER_REGISTRY.find(p => p.id === registryId)
+    if (!entry) return
+    const saved = aiConfig?.providers.find(p => p.id === registryId)
+    if (saved) {
+      setApiKey(saved.api_key)
+      setModel(saved.model)
+      setVideoModel(saved.video_model ?? '')
+    } else {
+      setApiKey('')
+      setModel(entry.models[0] ?? '')
+      setVideoModel(entry.videoModels?.[0] ?? '')
+    }
+  }
+
   function getProviderConfig(): (Omit<AIProviderConfig, 'enabled' | 'is_active'>) | null {
-    if (!selectedProvider) { showNotification('请先选择一个提供商类型', 'error'); return null }
-    if (selectedProvider === 'openai') {
-      if (!openaiKey) { showNotification('请输入 OpenAI API Key', 'error'); return null }
-      return { id: 'openai', name: 'OpenAI', api_base_url: 'https://api.openai.com', api_key: openaiKey, model: openaiModel }
+    if (!selectedProviderId) { showNotification('请先选择一个提供商', 'error'); return null }
+    const entry = PROVIDER_REGISTRY.find(p => p.id === selectedProviderId)
+    if (!entry) { showNotification('未知的提供商', 'error'); return null }
+    if (!apiKey) { showNotification(`请输入 ${entry.name} API Key`, 'error'); return null }
+    if (!model) { showNotification('请选择模型', 'error'); return null }
+    return {
+      id: entry.id,
+      name: entry.name,
+      api_base_url: entry.apiBaseUrl,
+      api_key: apiKey,
+      model,
+      provider_type: entry.providerType,
+      video_model: entry.isThirdParty && videoModel ? videoModel : null,
     }
-    if (selectedProvider === 'claude') {
-      if (!claudeKey) { showNotification('请输入 Claude API Key', 'error'); return null }
-      return { id: 'claude', name: 'Claude', api_base_url: 'https://api.anthropic.com', api_key: claudeKey, model: claudeModel }
-    }
-    if (!customUrl.startsWith('http')) { showNotification('API 地址必须以 http:// 或 https:// 开头', 'error'); return null }
-    if (!customKey) { showNotification('请输入 API Key', 'error'); return null }
-    if (!customModel) { showNotification('请输入模型名称', 'error'); return null }
-    return { id: 'custom', name: 'Custom', api_base_url: customUrl, api_key: customKey, model: customModel }
   }
 
   async function saveProvider() {
@@ -292,87 +303,62 @@ export function SettingsPage() {
           <div className="grid gap-6">
             <div className={CARD}>
               <h2 className="text-2xl font-semibold text-primary mb-6">AI 提供商配置</h2>
-              <div className="flex gap-3 mb-6">
-                {[['openai', 'OpenAI'], ['claude', 'Claude'], ['custom', '三方供应商']].map(([id, label]) => (
-                  <button key={id} onClick={() => setSelectedProvider(id)}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors ${
-                      selectedProvider === id
+              <div className="flex flex-wrap gap-3 mb-6">
+                {PROVIDER_REGISTRY.map(entry => (
+                  <button key={entry.id} onClick={() => handleProviderSelect(entry.id)}
+                    className={`px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
+                      selectedProviderId === entry.id
                         ? 'gradient-primary text-white border-transparent'
                         : 'bg-input text-muted border-secondary hover:border-glow'
                     }`}
-                  >{label}</button>
+                  >{entry.name}{entry.isThirdParty ? ' (第三方)' : ''}</button>
                 ))}
               </div>
 
-              {selectedProvider === 'openai' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">API Key</label>
-                    <input type="password" value={openaiKey} onChange={e => setOpenaiKey(e.target.value)}
-                      className={`${INPUT} font-mono`} placeholder="sk-..." />
+              {selectedProviderId && (() => {
+                const entry = PROVIDER_REGISTRY.find(p => p.id === selectedProviderId)
+                if (!entry) return null
+                return (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm text-secondary block mb-2">API Key</label>
+                      <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
+                        className={`${INPUT} font-mono`} placeholder={`输入 ${entry.name} API Key`} />
+                    </div>
+                    <div>
+                      <label className="text-sm text-secondary block mb-2">
+                        {entry.isThirdParty ? '语言模型' : '模型'}
+                      </label>
+                      <select value={model} onChange={e => setModel(e.target.value)} className={INPUT}>
+                        {entry.models.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {entry.isThirdParty && entry.videoModels && (
+                      <div>
+                        <label className="text-sm text-secondary block mb-2">视频模型</label>
+                        <select value={videoModel} onChange={e => setVideoModel(e.target.value)} className={INPUT}>
+                          {entry.videoModels.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted mt-1">用于视频/图像分析的模型</p>
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-4">
+                      <button onClick={saveProvider}
+                        className="flex-1 py-3 gradient-primary rounded-xl text-white font-medium text-sm hover:opacity-90 transition-opacity">
+                        保存配置
+                      </button>
+                      <button onClick={testProvider}
+                        className="py-3 px-6 bg-input rounded-xl text-white font-medium text-sm hover:bg-secondary transition-colors">
+                        测试连接
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">模型</label>
-                    <select value={openaiModel} onChange={e => setOpenaiModel(e.target.value)} className={INPUT}>
-                      {['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'].map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {selectedProvider === 'claude' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">API Key</label>
-                    <input type="password" value={claudeKey} onChange={e => setClaudeKey(e.target.value)}
-                      className={`${INPUT} font-mono`} placeholder="sk-ant-..." />
-                  </div>
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">模型</label>
-                    <select value={claudeModel} onChange={e => setClaudeModel(e.target.value)} className={INPUT}>
-                      {['claude-sonnet-4-5-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'].map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {selectedProvider === 'custom' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">API 地址</label>
-                    <input type="text" value={customUrl} onChange={e => setCustomUrl(e.target.value)}
-                      className={`${INPUT} font-mono`} placeholder="https://api.example.com" />
-                    <p className="text-xs text-muted mt-1">OpenAI 兼容格式，会自动添加 /v1/chat/completions</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">API Key</label>
-                    <input type="password" value={customKey} onChange={e => setCustomKey(e.target.value)}
-                      className={`${INPUT} font-mono`} placeholder="sk-..." />
-                  </div>
-                  <div>
-                    <label className="text-sm text-secondary block mb-2">模型名称</label>
-                    <input type="text" value={customModel} onChange={e => setCustomModel(e.target.value)}
-                      className={`${INPUT} font-mono`} placeholder="输入模型名称" />
-                  </div>
-                </div>
-              )}
-
-              {selectedProvider && (
-                <div className="flex gap-2 pt-4">
-                  <button onClick={saveProvider}
-                    className="flex-1 py-3 gradient-primary rounded-xl text-white font-medium text-sm hover:opacity-90 transition-opacity">
-                    保存配置
-                  </button>
-                  <button onClick={testProvider}
-                    className="py-3 px-6 bg-input rounded-xl text-white font-medium text-sm hover:bg-secondary transition-colors">
-                    测试连接
-                  </button>
-                </div>
-              )}
+                )
+              })()}
             </div>
 
             <div className={CARD}>
@@ -483,6 +469,7 @@ function AIStatus({ config }: { config: AIConfig | null }) {
       </div>
       <div className="text-xs text-muted space-y-1">
         <p>模型: {active.model}</p>
+        {active.video_model && <p>视频模型: {active.video_model}</p>}
         <p>Key: {masked}</p>
         {active.api_base_url && <p>API: {active.api_base_url}</p>}
       </div>
