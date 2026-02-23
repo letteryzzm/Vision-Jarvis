@@ -1,7 +1,7 @@
 # AI 服务
 
-> **最后更新**: 2026-02-21
-> **版本**: v3.0 — Provider 工厂模式
+> **最后更新**: 2026-02-22
+> **版本**: v3.1 — 新增 SiliconFlow + video_model
 > **实现状态**: Provider 工厂模式重构完成
 
 **实现文件**:
@@ -12,7 +12,7 @@
 - `src-tauri/src/ai/provider.rs` — `AIProviderConfig`、`ProviderType`、`AIConfig`
 - `src-tauri/src/ai/prompt.rs` — Prompt 模板系统
 - `src-tauri/src/ai/frame_extractor.rs` — 视频帧提取（ffmpeg）
-- `src-tauri/src/ai/providers/` — 6 个供应商独立实现
+- `src-tauri/src/ai/providers/` — 7 个供应商独立实现
 
 ---
 
@@ -26,7 +26,8 @@ AIClient (facade)
         ├── GeminiProvider       — generateContent, inline_data
         ├── QwenProvider         — OpenAI 兼容
         ├── AIHubMixProvider     — OpenAI 兼容代理
-        └── OpenRouterProvider   — OpenAI 兼容 + 额外头
+        ├── OpenRouterProvider   — OpenAI 兼容 + 额外头
+        └── SiliconFlowProvider  — OpenAI 兼容 + 原生 video_url
 ```
 
 **设计原则**: 调用方（`screenshot_analyzer.rs`、`summary_generator.rs` 等）只依赖 `AIClient` 公共 API，不感知底层 Provider 差异。
@@ -43,6 +44,7 @@ AIClient (facade)
 | Qwen | `/v1/chat/completions` | Bearer token | image_url data URL |
 | AIHubMix | `/v1/chat/completions` | Bearer token | image_url data URL |
 | OpenRouter | `/v1/chat/completions` | Bearer + X-Title + HTTP-Referer | image_url data URL |
+| SiliconFlow | `/v1/chat/completions` | Bearer token | video_url (原生) / image_url |
 
 ---
 
@@ -76,6 +78,19 @@ Gemini 直接接受 `inline_data` 格式的视频数据:
 }
 ```
 
+### 原生 video_url (SiliconFlow)
+
+SiliconFlow 支持 `video_url` 类型直接传递视频:
+
+```json
+{
+  "content": [
+    { "type": "text", "text": "分析视频" },
+    { "type": "video_url", "video_url": { "url": "data:video/mp4;base64,...", "max_frames": 10, "fps": 2.0 } }
+  ]
+}
+```
+
 ### 帧提取 (Claude)
 
 Claude API 不支持原生视频。自动使用 ffmpeg 帧提取:
@@ -99,6 +114,7 @@ pub fn create_provider(config: AIProviderConfig) -> AppResult<Box<dyn AIProvider
         ProviderType::Qwen       => Ok(Box::new(QwenProvider::new(config)?)),
         ProviderType::AIHubMix   => Ok(Box::new(AIHubMixProvider::new(config)?)),
         ProviderType::OpenRouter => Ok(Box::new(OpenRouterProvider::new(config)?)),
+        ProviderType::SiliconFlow => Ok(Box::new(SiliconFlowProvider::new(config)?)),
     }
 }
 ```

@@ -1,7 +1,7 @@
 # AI Providers Service
 
-> **最后更新**: 2026-02-21
-> **版本**: v3.0 — Provider 工厂模式
+> **最后更新**: 2026-02-22
+> **版本**: v3.1 — 新增 SiliconFlow + video_model
 > **实现状态**: 已完成
 
 ## 概述
@@ -30,6 +30,7 @@ pub enum ProviderType {
     Qwen,
     AIHubMix,
     OpenRouter,
+    SiliconFlow,
 }
 ```
 
@@ -46,10 +47,12 @@ pub struct AIProviderConfig {
     pub is_active: bool,
     #[serde(default)]
     pub provider_type: ProviderType,
+    #[serde(default)]
+    pub video_model: Option<String>,
 }
 ```
 
-**向后兼容**: `provider_type` 使用 `#[serde(default)]`，旧数据没有此字段时自动默认为 `OpenAI`。
+**向后兼容**: `provider_type` 和 `video_model` 使用 `#[serde(default)]`，旧数据没有此字段时自动默认为 `OpenAI` / `None`。`effective_video_model()` 返回 `video_model` 或回退到 `model`。
 
 ### AIProvider trait
 
@@ -74,6 +77,7 @@ pub trait AIProvider: Send + Sync {
 | `QwenProvider` | `/v1/chat/completions` | `Bearer {key}` | image_url + data URL |
 | `AIHubMixProvider` | `/v1/chat/completions` | `Bearer {key}` | image_url + data URL |
 | `OpenRouterProvider` | `/v1/chat/completions` | `Bearer {key}` + `X-Title` + `HTTP-Referer` | image_url + data URL |
+| `SiliconFlowProvider` | `/v1/chat/completions` | `Bearer {key}` | video_url (原生) / image_url |
 
 ## 使用示例
 
@@ -115,7 +119,8 @@ let client = AIClient::new(config)?;
   "model": "gemini-3-flash-preview",
   "enabled": true,
   "is_active": true,
-  "provider_type": "Gemini"
+  "provider_type": "Gemini",
+  "video_model": null
 }
 ```
 
