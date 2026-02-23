@@ -70,9 +70,9 @@ impl QwenProvider {
         format!("{}/v1/chat/completions", self.config.api_base_url.trim_end_matches('/'))
     }
 
-    async fn send_request(&self, messages: Vec<QwenMessage>) -> AppResult<String> {
+    async fn send_request(&self, messages: Vec<QwenMessage>, model: &str) -> AppResult<String> {
         let request_body = QwenRequest {
-            model: self.config.model.clone(),
+            model: model.to_string(),
             messages,
             max_tokens: Some(4096),
             temperature: Some(0.7),
@@ -125,7 +125,7 @@ impl AIProvider for QwenProvider {
             role: "user".to_string(),
             content: vec![QwenContent::Text { text: prompt.to_string() }],
         }];
-        self.send_request(messages).await
+        self.send_request(messages, &self.config.model).await
     }
 
     async fn analyze_video(&self, video_base64: &str, prompt: &str) -> AppResult<String> {
@@ -140,7 +140,7 @@ impl AIProvider for QwenProvider {
                 },
             ],
         }];
-        self.send_request(messages).await
+        self.send_request(messages, self.config.effective_video_model()).await
     }
 
     async fn analyze_image(&self, image_base64: &str, prompt: &str) -> AppResult<String> {
@@ -155,7 +155,7 @@ impl AIProvider for QwenProvider {
                 },
             ],
         }];
-        self.send_request(messages).await
+        self.send_request(messages, self.config.effective_video_model()).await
     }
 
     async fn test_connection(&self) -> AppResult<String> {

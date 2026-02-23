@@ -67,9 +67,9 @@ impl ClaudeProvider {
         format!("{}/v1/messages", self.config.api_base_url.trim_end_matches('/'))
     }
 
-    async fn send_request(&self, messages: Vec<ClaudeMessage>) -> AppResult<String> {
+    async fn send_request(&self, messages: Vec<ClaudeMessage>, model: &str) -> AppResult<String> {
         let request_body = ClaudeRequest {
-            model: self.config.model.clone(),
+            model: model.to_string(),
             max_tokens: 4096,
             messages,
         };
@@ -122,7 +122,7 @@ impl AIProvider for ClaudeProvider {
             role: "user".to_string(),
             content: vec![ClaudeContent::Text { text: prompt.to_string() }],
         }];
-        self.send_request(messages).await
+        self.send_request(messages, &self.config.model).await
     }
 
     async fn analyze_video(&self, video_base64: &str, prompt: &str) -> AppResult<String> {
@@ -147,7 +147,7 @@ impl AIProvider for ClaudeProvider {
                     role: "user".to_string(),
                     content,
                 }];
-                self.send_request(messages).await
+                self.send_request(messages, self.config.effective_video_model()).await
             }
             Err(e) => {
                 warn!("[Claude] 帧提取失败({}), 回退到纯文本提示", e);
@@ -174,7 +174,7 @@ impl AIProvider for ClaudeProvider {
                 },
             ],
         }];
-        self.send_request(messages).await
+        self.send_request(messages, self.config.effective_video_model()).await
     }
 
     async fn test_connection(&self) -> AppResult<String> {

@@ -73,15 +73,15 @@ impl GeminiProvider {
         Ok(Self { config, client })
     }
 
-    fn api_url(&self) -> String {
+    fn api_url(&self, model: &str) -> String {
         format!(
             "{}/v1beta/models/{}:generateContent",
             self.config.api_base_url.trim_end_matches('/'),
-            self.config.model
+            model
         )
     }
 
-    async fn send_request(&self, parts: Vec<GeminiPart>) -> AppResult<String> {
+    async fn send_request(&self, parts: Vec<GeminiPart>, model: &str) -> AppResult<String> {
         let request_body = GeminiRequest {
             contents: vec![GeminiContent { parts }],
             generation_config: GeminiGenerationConfig {
@@ -91,7 +91,7 @@ impl GeminiProvider {
         };
 
         let response = self.client
-            .post(&self.api_url())
+            .post(&self.api_url(model))
             .header("x-goog-api-key", &self.config.api_key)
             .header("Content-Type", "application/json")
             .json(&request_body)
@@ -135,7 +135,7 @@ impl GeminiProvider {
 impl AIProvider for GeminiProvider {
     async fn send_text(&self, prompt: &str) -> AppResult<String> {
         let parts = vec![GeminiPart::Text { text: prompt.to_string() }];
-        self.send_request(parts).await
+        self.send_request(parts, &self.config.model).await
     }
 
     async fn analyze_video(&self, video_base64: &str, prompt: &str) -> AppResult<String> {
@@ -148,7 +148,7 @@ impl AIProvider for GeminiProvider {
                 },
             },
         ];
-        self.send_request(parts).await
+        self.send_request(parts, self.config.effective_video_model()).await
     }
 
     async fn analyze_image(&self, image_base64: &str, prompt: &str) -> AppResult<String> {
@@ -161,7 +161,7 @@ impl AIProvider for GeminiProvider {
                 },
             },
         ];
-        self.send_request(parts).await
+        self.send_request(parts, self.config.effective_video_model()).await
     }
 
     async fn test_connection(&self) -> AppResult<String> {
