@@ -2,12 +2,13 @@ use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use tokio::sync::Mutex;
+use tokio::time::{Duration, Instant};
 use chrono::{Local, Timelike};
-use log::info;
+use log::{info, warn};
 use uuid::Uuid;
 
 fn find_screen_device_index() -> u32 {
-    let output = Command::new("ffmpeg")
+    let output = std::process::Command::new("ffmpeg")
         .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -64,6 +65,9 @@ impl ScreenRecorder {
     }
 
     pub async fn start_segment(&self) -> AppResult<PathBuf> {
+        // 确保旧进程已清理
+        self.stop().await;
+
         let now = Local::now();
         let dir = self.storage_path
             .join("recordings")
@@ -107,7 +111,28 @@ impl ScreenRecorder {
             unsafe { libc::kill(child.id() as i32, libc::SIGTERM); }
             #[cfg(not(unix))]
             let _ = child.kill();
-            let _ = child.wait();
+
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) => {
+                        if Instant::now() >= deadline {
+                            warn!("FFmpeg 未在 5s 内退出，强制终止");
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    Err(e) => {
+                        warn!("FFmpeg try_wait error: {}", e);
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        break;
+                    }
+                }
+            }
         }
         *guard = None;
     }
