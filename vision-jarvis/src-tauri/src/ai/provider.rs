@@ -45,6 +45,10 @@ pub struct AIProviderConfig {
     /// 供应商类型（决定使用哪种 API 格式）
     #[serde(default)]
     pub provider_type: ProviderType,
+
+    /// 视频/图像分析使用的模型（第三方供应商可能需要不同于文本的模型）
+    #[serde(default)]
+    pub video_model: Option<String>,
 }
 
 impl AIProviderConfig {
@@ -65,6 +69,7 @@ impl AIProviderConfig {
             enabled: true,
             is_active: false,
             provider_type: ProviderType::default(),
+            video_model: None,
         }
     }
 
@@ -108,6 +113,11 @@ impl AIProviderConfig {
     /// 设置为激活状态
     pub fn set_active(&mut self, active: bool) {
         self.is_active = active;
+    }
+
+    /// 获取视频/图像分析使用的有效模型
+    pub fn effective_video_model(&self) -> &str {
+        self.video_model.as_deref().unwrap_or(&self.model)
     }
 }
 
