@@ -48,7 +48,7 @@ export const PROVIDER_REGISTRY: ProviderRegistryEntry[] = [
     name: 'SiliconFlow',
     apiBaseUrl: 'https://api.siliconflow.cn',
     providerType: 'SiliconFlow',
-    models: ['Pro/zai-org/GLM-4.7', 'Qwen/Qwen3-VL-8B-Instruct'],
+    models: ['Pro/MiniMaxAI/MiniMax-M2.5', 'Pro/zai-org/GLM-4.7', 'Qwen/Qwen3-VL-8B-Instruct'],
     videoModels: ['Qwen/Qwen3-VL-8B-Instruct', 'Pro/zai-org/GLM-4.7'],
     isThirdParty: true,
   },
