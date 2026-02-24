@@ -11,10 +11,34 @@ import { PROVIDER_REGISTRY } from '@/lib/provider-registry'
 import { Toggle } from '@/components/ui/Toggle'
 import { showNotification } from '@/lib/utils'
 
-const INPUT = 'w-full h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary'
-const TEXTAREA = 'w-full p-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary resize-none'
-const SAVE_BTN = 'px-4 py-2 bg-input rounded-lg border border-secondary hover:border-glow transition-colors text-sm text-primary'
-const CARD = 'p-8 bg-card rounded-[24px] border border-primary'
+const INPUT = [
+  'w-full h-11 px-4 rounded-xl outline-none text-sm text-primary',
+  'bg-input border border-primary',
+  'transition-all duration-200 ease-out',
+  'focus:border-active focus:bg-secondary',
+  'placeholder:text-placeholder',
+].join(' ')
+
+const TEXTAREA = [
+  'w-full p-4 rounded-xl outline-none text-sm text-primary resize-none',
+  'bg-input border border-primary',
+  'transition-all duration-200 ease-out',
+  'focus:border-active focus:bg-secondary',
+  'placeholder:text-placeholder',
+].join(' ')
+
+const SAVE_BTN = [
+  'px-5 py-2.5 rounded-xl text-sm font-medium',
+  'bg-secondary border border-primary text-secondary',
+  'hover:bg-hover hover:border-active hover:text-primary',
+  'transition-all duration-200 ease-out',
+  'active:scale-[0.98]',
+].join(' ')
+
+const CARD = [
+  'p-8 rounded-2xl border border-primary bg-card',
+  'backdrop-blur-sm',
+].join(' ')
 
 function ReminderCard({
   title, desc, enabled, onToggle, children, onSave,
@@ -26,12 +50,15 @@ function ReminderCard({
     <div className={CARD}>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-semibold text-primary mb-2">{title}</h2>
-          <p className="text-sm text-muted">{desc}</p>
+          <h2 className="text-lg font-medium text-primary mb-1">{title}</h2>
+          <p className="text-xs text-muted">{desc}</p>
         </div>
         <Toggle enabled={enabled} onChange={onToggle} size="lg" />
       </div>
-      <div className="space-y-4">
+      <div
+        className="space-y-4 overflow-hidden transition-all duration-300 ease-out"
+        style={{ opacity: enabled ? 1 : 0.4, pointerEvents: enabled ? 'auto' : 'none' }}
+      >
         {children}
         <button onClick={onSave} className={SAVE_BTN}>保存</button>
       </div>
@@ -140,38 +167,43 @@ export function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-app p-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-primary mb-2">设置</h1>
-          <p className="text-lg text-muted">配置您的应用偏好</p>
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold text-primary mb-1 tracking-tight">设置</h1>
+          <p className="text-sm text-muted">配置您的应用偏好</p>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-8 border-b border-primary">
+        <div className="flex gap-1 mb-8 p-1 rounded-xl bg-secondary w-fit">
           {(['general', 'ai'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
-                tab === t ? 'border-info text-info' : 'border-transparent text-muted'
-              }`}
+              className={[
+                'px-5 py-2 rounded-lg text-sm font-medium',
+                'transition-all duration-200 ease-out',
+                tab === t
+                  ? 'bg-white/90 text-black shadow-sm'
+                  : 'text-muted hover:text-secondary',
+              ].join(' ')}
             >{t === 'general' ? '通用设置' : 'AI 配置'}</button>
           ))}
         </div>
 
         {/* General Tab */}
         {tab === 'general' && (
-          <div className="grid gap-6">
+          <div className="grid gap-4">
             {/* Card 1: 启动设置 */}
             <div className={CARD}>
-              <h2 className="text-2xl font-semibold text-primary mb-6">启动设置</h2>
+              <h2 className="text-lg font-medium text-primary mb-5">启动设置</h2>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-input rounded-xl">
+                <div className="flex items-center justify-between py-3 px-4 bg-secondary rounded-xl">
                   <span className="text-sm text-secondary">开机自动启动</span>
                   <Toggle enabled={s?.auto_start ?? false} onChange={v =>
                     handleToggle(toggleAutoStart, v, v ? '已启用开机自启' : '已禁用开机自启')
                   } />
                 </div>
                 <div>
-                  <label className="text-sm text-secondary block mb-2">启动提醒文本</label>
+                  <label className="text-xs text-muted block mb-2 uppercase tracking-wider">启动提醒文本</label>
                   <textarea defaultValue={s?.app_launch_text ?? ''} id="launch-text"
                     className={`${TEXTAREA} h-24`} placeholder="输入启动提醒文本..." />
                   <button className={`mt-2 ${SAVE_BTN}`} onClick={() => {
@@ -193,12 +225,12 @@ export function SettingsPage() {
               }}
             >
               <div>
-                <label className="text-sm text-secondary block mb-2">触发时间</label>
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">触发时间</label>
                 <input id="morning-time" type="time" defaultValue={s?.morning_reminder_time ?? '08:00'}
-                  className="w-48 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary" />
+                  className="w-40 h-11 px-4 bg-input rounded-xl border border-primary focus:border-active outline-none text-sm text-primary transition-all duration-200" />
               </div>
               <div>
-                <label className="text-sm text-secondary block mb-2">提醒消息</label>
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">提醒消息</label>
                 <textarea id="morning-msg" defaultValue={s?.morning_reminder_message ?? ''}
                   className={`${TEXTAREA} h-20`} placeholder="输入早安提醒消息..." />
               </div>
@@ -216,18 +248,18 @@ export function SettingsPage() {
               }}
             >
               <div>
-                <label className="text-sm text-secondary block mb-3">提醒时间段</label>
-                <div className="flex items-center gap-4">
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">提醒时间段</label>
+                <div className="flex items-center gap-3">
                   <input id="water-start" type="time" defaultValue={s?.water_reminder_start ?? '09:00'}
-                    className="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary" />
-                  <span className="text-muted">至</span>
+                    className="flex-1 h-11 px-4 bg-input rounded-xl border border-primary focus:border-active outline-none text-sm text-primary transition-all duration-200" />
+                  <span className="text-muted text-sm">—</span>
                   <input id="water-end" type="time" defaultValue={s?.water_reminder_end ?? '21:00'}
-                    className="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary" />
+                    className="flex-1 h-11 px-4 bg-input rounded-xl border border-primary focus:border-active outline-none text-sm text-primary transition-all duration-200" />
                 </div>
               </div>
               <WaterIntervalSlider defaultValue={s?.water_reminder_interval_minutes ?? 60} />
               <div>
-                <label className="text-sm text-secondary block mb-2">提醒消息</label>
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">提醒消息</label>
                 <textarea id="water-msg" defaultValue={s?.water_reminder_message ?? ''}
                   className={`${TEXTAREA} h-20`} placeholder="输入喝水提醒消息..." />
               </div>
@@ -245,18 +277,18 @@ export function SettingsPage() {
               }}
             >
               <div>
-                <label className="text-sm text-secondary block mb-3">生效时间段</label>
-                <div className="flex items-center gap-4">
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">生效时间段</label>
+                <div className="flex items-center gap-3">
                   <input id="sed-start" type="time" defaultValue={s?.sedentary_reminder_start ?? '09:00'}
-                    className="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary" />
-                  <span className="text-muted">至</span>
+                    className="flex-1 h-11 px-4 bg-input rounded-xl border border-primary focus:border-active outline-none text-sm text-primary transition-all duration-200" />
+                  <span className="text-muted text-sm">—</span>
                   <input id="sed-end" type="time" defaultValue={s?.sedentary_reminder_end ?? '21:00'}
-                    className="flex-1 h-12 px-4 bg-input rounded-xl border border-secondary focus:border-glow outline-none text-sm text-primary" />
+                    className="flex-1 h-11 px-4 bg-input rounded-xl border border-primary focus:border-active outline-none text-sm text-primary transition-all duration-200" />
                 </div>
               </div>
               <SedentarySlider defaultValue={s?.sedentary_reminder_threshold_minutes ?? 60} />
               <div>
-                <label className="text-sm text-secondary block mb-2">提醒消息</label>
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">提醒消息</label>
                 <textarea id="sed-msg" defaultValue={s?.sedentary_reminder_message ?? ''}
                   className={`${TEXTAREA} h-20`} placeholder="输入久坐提醒消息..." />
               </div>
@@ -273,7 +305,7 @@ export function SettingsPage() {
             >
               <ScreenInactivitySlider defaultValue={s?.screen_inactivity_minutes ?? 10} />
               <div>
-                <label className="text-sm text-secondary block mb-2">提醒消息</label>
+                <label className="text-xs text-muted block mb-2 uppercase tracking-wider">提醒消息</label>
                 <textarea id="screen-msg" defaultValue={s?.screen_inactivity_message ?? ''}
                   className={`${TEXTAREA} h-20`} placeholder="留空则使用 AI 智能建议..." />
               </div>
@@ -281,13 +313,13 @@ export function SettingsPage() {
 
             {/* Card 6: 存储设置 */}
             <div className={CARD}>
-              <h2 className="text-2xl font-semibold text-primary mb-6">存储设置</h2>
+              <h2 className="text-lg font-medium text-primary mb-5">存储设置</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-secondary block mb-2">存储路径</label>
+                  <label className="text-xs text-muted block mb-2 uppercase tracking-wider">存储路径</label>
                   <div className="flex gap-2">
                     <input type="text" readOnly value={s?.storage_path ?? ''}
-                      className={`${INPUT} flex-1 font-mono`}
+                      className={`${INPUT} flex-1 font-mono text-xs`}
                       placeholder="~/Library/Application Support/vision-jarvis/screenshots" />
                     <button className={SAVE_BTN} onClick={() => s && TauriAPI.openFolder(s.storage_path)}>打开</button>
                   </div>
@@ -300,19 +332,29 @@ export function SettingsPage() {
 
         {/* AI Tab */}
         {tab === 'ai' && (
-          <div className="grid gap-6">
+          <div className="grid gap-4">
             <div className={CARD}>
-              <h2 className="text-2xl font-semibold text-primary mb-6">AI 提供商配置</h2>
-              <div className="flex flex-wrap gap-3 mb-6">
-                {PROVIDER_REGISTRY.map(entry => (
-                  <button key={entry.id} onClick={() => handleProviderSelect(entry.id)}
-                    className={`px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
-                      selectedProviderId === entry.id
-                        ? 'gradient-primary text-white border-transparent'
-                        : 'bg-input text-muted border-secondary hover:border-glow'
-                    }`}
-                  >{entry.name}{entry.isThirdParty ? ' (第三方)' : ''}</button>
-                ))}
+              <h2 className="text-lg font-medium text-primary mb-5">AI 提供商</h2>
+
+              {/* Provider chips */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {PROVIDER_REGISTRY.map(entry => {
+                  const isActive = selectedProviderId === entry.id
+                  return (
+                    <button key={entry.id} onClick={() => handleProviderSelect(entry.id)}
+                      className={[
+                        'px-4 py-2 rounded-xl text-sm font-medium',
+                        'transition-all duration-200 ease-out',
+                        'active:scale-[0.97]',
+                        isActive
+                          ? 'bg-white/92 text-black border border-transparent shadow-sm'
+                          : 'bg-transparent text-secondary border border-primary hover:border-active hover:text-primary',
+                      ].join(' ')}
+                    >
+                      {entry.name}{entry.isThirdParty ? ' ·' : ''}
+                    </button>
+                  )
+                })}
               </div>
 
               {selectedProviderId && (() => {
@@ -321,15 +363,16 @@ export function SettingsPage() {
                 return (
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm text-secondary block mb-2">API Key</label>
+                      <label className="text-xs text-muted block mb-2 uppercase tracking-wider">API Key</label>
                       <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
                         className={`${INPUT} font-mono`} placeholder={`输入 ${entry.name} API Key`} />
                     </div>
                     <div>
-                      <label className="text-sm text-secondary block mb-2">
+                      <label className="text-xs text-muted block mb-2 uppercase tracking-wider">
                         {entry.isThirdParty ? '语言模型' : '模型'}
                       </label>
-                      <select value={model} onChange={e => setModel(e.target.value)} className={INPUT}>
+                      <select value={model} onChange={e => setModel(e.target.value)}
+                        className={`${INPUT} appearance-none`}>
                         {entry.models.map(m => (
                           <option key={m} value={m}>{m}</option>
                         ))}
@@ -337,22 +380,33 @@ export function SettingsPage() {
                     </div>
                     {entry.isThirdParty && entry.videoModels && (
                       <div>
-                        <label className="text-sm text-secondary block mb-2">视频模型</label>
-                        <select value={videoModel} onChange={e => setVideoModel(e.target.value)} className={INPUT}>
+                        <label className="text-xs text-muted block mb-2 uppercase tracking-wider">视频模型</label>
+                        <select value={videoModel} onChange={e => setVideoModel(e.target.value)}
+                          className={`${INPUT} appearance-none`}>
                           {entry.videoModels.map(m => (
                             <option key={m} value={m}>{m}</option>
                           ))}
                         </select>
-                        <p className="text-xs text-muted mt-1">用于视频/图像分析的模型</p>
+                        <p className="text-xs text-muted mt-1.5">用于视频 / 图像分析</p>
                       </div>
                     )}
-                    <div className="flex gap-2 pt-4">
+                    <div className="flex gap-2 pt-2">
                       <button onClick={saveProvider}
-                        className="flex-1 py-3 gradient-primary rounded-xl text-white font-medium text-sm hover:opacity-90 transition-opacity">
+                        className={[
+                          'flex-1 py-3 rounded-xl text-sm font-medium',
+                          'bg-white/92 text-black',
+                          'hover:bg-white transition-all duration-200 ease-out',
+                          'active:scale-[0.98]',
+                        ].join(' ')}>
                         保存配置
                       </button>
                       <button onClick={testProvider}
-                        className="py-3 px-6 bg-input rounded-xl text-white font-medium text-sm hover:bg-secondary transition-colors">
+                        className={[
+                          'py-3 px-6 rounded-xl text-sm font-medium',
+                          'bg-secondary border border-primary text-secondary',
+                          'hover:bg-hover hover:border-active hover:text-primary',
+                          'transition-all duration-200 ease-out active:scale-[0.98]',
+                        ].join(' ')}>
                         测试连接
                       </button>
                     </div>
@@ -362,7 +416,7 @@ export function SettingsPage() {
             </div>
 
             <div className={CARD}>
-              <h2 className="text-2xl font-semibold text-primary mb-4">当前状态</h2>
+              <h2 className="text-lg font-medium text-primary mb-4">当前状态</h2>
               <AIStatus config={aiConfig} />
             </div>
           </div>
@@ -372,82 +426,96 @@ export function SettingsPage() {
   )
 }
 
+function MonoSlider({
+  label, value, min, max, step, unit, onChange,
+}: {
+  label: string; value: number; min: number; max: number
+  step: number; unit: string; onChange: (v: number) => void
+}) {
+  const pct = ((value - min) / (max - min)) * 100
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-3">
+        <span className="text-muted uppercase tracking-wider">{label}</span>
+        <span className="text-secondary tabular-nums">{value} {unit}</span>
+      </div>
+      <div className="relative py-1">
+        <div className="absolute top-1/2 -translate-y-1/2 w-full h-[2px] rounded-full overflow-hidden pointer-events-none">
+          <div className="h-full bg-white/10 w-full absolute" />
+          <div
+            className="h-full bg-white/80 absolute left-0 transition-all duration-150 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onChange={e => onChange(parseInt(e.target.value))}
+          className="mono-slider"
+        />
+      </div>
+      <div className="flex justify-between text-[10px] text-muted mt-1.5">
+        <span>{min}{unit}</span>
+        <span>{max}{unit}</span>
+      </div>
+    </div>
+  )
+}
+
 function WaterIntervalSlider({ defaultValue }: { defaultValue: number }) {
   const [value, setValue] = useState(defaultValue)
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-3">
-        <span className="text-secondary">提醒间隔</span>
-        <span className="text-info">每 {value} 分钟</span>
-      </div>
-      <input type="range" min="15" max="180" step="15" value={value}
-        onChange={e => {
-          const v = parseInt(e.target.value)
-          setValue(v)
-          updateSettings({ water_reminder_interval_minutes: v }).catch(console.error)
-        }}
-        className="w-full" />
-      <div className="flex justify-between text-xs text-muted mt-1"><span>15分钟</span><span>180分钟</span></div>
-    </div>
+    <MonoSlider label="提醒间隔" value={value} min={15} max={180} step={15} unit="分钟"
+      onChange={v => { setValue(v); updateSettings({ water_reminder_interval_minutes: v }).catch(() => {}) }} />
   )
 }
 
 function SedentarySlider({ defaultValue }: { defaultValue: number }) {
   const [value, setValue] = useState(defaultValue)
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-3">
-        <span className="text-secondary">久坐阈值</span>
-        <span className="text-info">{value} 分钟</span>
-      </div>
-      <input type="range" min="15" max="180" step="15" value={value}
-        onChange={e => {
-          const v = parseInt(e.target.value)
-          setValue(v)
-          updateSettings({ sedentary_reminder_threshold_minutes: v }).catch(console.error)
-        }}
-        className="w-full" />
-      <div className="flex justify-between text-xs text-muted mt-1"><span>15分钟</span><span>180分钟</span></div>
-    </div>
+    <MonoSlider label="久坐阈值" value={value} min={15} max={180} step={15} unit="分钟"
+      onChange={v => { setValue(v); updateSettings({ sedentary_reminder_threshold_minutes: v }).catch(() => {}) }} />
   )
 }
 
 function ScreenInactivitySlider({ defaultValue }: { defaultValue: number }) {
   const [value, setValue] = useState(defaultValue)
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-3">
-        <span className="text-secondary">无变化阈值</span>
-        <span className="text-info">{value} 分钟</span>
-      </div>
-      <input type="range" min="5" max="60" step="5" value={value}
-        onChange={e => {
-          const v = parseInt(e.target.value)
-          setValue(v)
-          updateSettings({ screen_inactivity_minutes: v }).catch(console.error)
-        }}
-        className="w-full" />
-      <div className="flex justify-between text-xs text-muted mt-1"><span>5分钟</span><span>60分钟</span></div>
-    </div>
+    <MonoSlider label="无变化阈值" value={value} min={5} max={60} step={5} unit="分钟"
+      onChange={v => { setValue(v); updateSettings({ screen_inactivity_minutes: v }).catch(() => {}) }} />
   )
 }
 
 function StorageLimitSlider({ defaultValue }: { defaultValue: number }) {
   const [value, setValue] = useState(defaultValue)
+  const display = value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${value} MB`
   return (
     <div>
-      <div className="flex justify-between text-sm mb-3">
-        <span className="text-secondary">存储容量限制</span>
-        <span className="text-info">{value} MB</span>
+      <div className="flex justify-between text-xs mb-3">
+        <span className="text-muted uppercase tracking-wider">存储容量限制</span>
+        <span className="text-secondary tabular-nums">{display}</span>
       </div>
-      <input type="range" min="512" max="10240" step="512" value={value}
-        onChange={e => {
-          const v = parseInt(e.target.value)
-          setValue(v)
-          updateSettings({ storage_limit_mb: v }).catch(console.error)
-        }}
-        className="w-full" />
-      <div className="flex justify-between text-xs text-muted mt-1"><span>512MB</span><span>10GB</span></div>
+      <div className="relative py-1">
+        <div className="absolute top-1/2 -translate-y-1/2 w-full h-[2px] rounded-full overflow-hidden pointer-events-none">
+          <div className="h-full bg-white/10 w-full absolute" />
+          <div
+            className="h-full bg-white/80 absolute left-0 transition-all duration-150 ease-out"
+            style={{ width: `${((value - 512) / (10240 - 512)) * 100}%` }}
+          />
+        </div>
+        <input
+          type="range" min={512} max={10240} step={512} value={value}
+          onChange={e => {
+            const v = parseInt(e.target.value)
+            setValue(v)
+            updateSettings({ storage_limit_mb: v }).catch(() => {})
+          }}
+          className="mono-slider"
+        />
+      </div>
+      <div className="flex justify-between text-[10px] text-muted mt-1.5">
+        <span>512 MB</span>
+        <span>10 GB</span>
+      </div>
     </div>
   )
 }
@@ -458,20 +526,20 @@ function AIStatus({ config }: { config: AIConfig | null }) {
   const active = config.providers.find(p => p.id === config.active_provider_id)
   if (!active) return <p className="text-sm text-muted">已配置提供商但未激活</p>
   const masked = active.api_key.length > 8
-    ? active.api_key.slice(0, 4) + '****' + active.api_key.slice(-4)
-    : '****'
+    ? active.api_key.slice(0, 4) + '····' + active.api_key.slice(-4)
+    : '····'
   return (
     <div className="text-sm">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-2 h-2 rounded-full bg-green-400" />
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-1.5 h-1.5 rounded-full bg-white/60" />
         <span className="text-primary font-medium">{active.name}</span>
-        <span className="text-xs text-success">[活跃]</span>
+        <span className="text-xs text-muted border border-primary rounded px-1.5 py-0.5">活跃</span>
       </div>
-      <div className="text-xs text-muted space-y-1">
-        <p>模型: {active.model}</p>
-        {active.video_model && <p>视频模型: {active.video_model}</p>}
-        <p>Key: {masked}</p>
-        {active.api_base_url && <p>API: {active.api_base_url}</p>}
+      <div className="text-xs text-muted space-y-1.5 pl-3.5">
+        <p>模型 · {active.model}</p>
+        {active.video_model && <p>视频 · {active.video_model}</p>}
+        <p>Key · {masked}</p>
+        {active.api_base_url && <p>API · {active.api_base_url}</p>}
       </div>
     </div>
   )
