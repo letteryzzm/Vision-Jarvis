@@ -46,7 +46,10 @@ impl CaptureScheduler {
 
         let handle = tokio::spawn(async move {
             loop {
-                if !*is_running.lock().await { break; }
+                if !*is_running.lock().await {
+                    recorder.stop().await;
+                    break;
+                }
 
                 let output_path = match recorder.start_segment().await {
                     Ok(p) => p,
@@ -57,7 +60,7 @@ impl CaptureScheduler {
                     }
                 };
 
-                let start_time = chrono::Utc::now().timestamp();
+                let start_time = chrono::Local::now().timestamp();
                 let filename = output_path.file_name()
                     .map(|f| f.to_string_lossy().to_string())
                     .unwrap_or_default();
@@ -67,12 +70,15 @@ impl CaptureScheduler {
                 tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
 
                 // 被停止时不保存（scheduler.stop 已处理清理）
-                if !*is_running.lock().await { break; }
+                if !*is_running.lock().await {
+                    recorder.stop().await;
+                    break;
+                }
 
                 // 发送 SIGTERM 结束 FFmpeg，等待写入文件尾
                 recorder.stop().await;
 
-                let end_time = chrono::Utc::now().timestamp();
+                let end_time = chrono::Local::now().timestamp();
                 let duration = end_time - start_time;
 
                 let file_ok = output_path.exists()

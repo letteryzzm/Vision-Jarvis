@@ -133,8 +133,12 @@ impl ScreenshotAnalyzer {
             }
         }
 
-        info!("录制分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
-            result.total, result.analyzed, result.skipped, result.failed);
+        if result.analyzed > 0 || result.failed > 0 {
+            info!("录制分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
+                result.total, result.analyzed, result.skipped, result.failed);
+        } else if result.skipped > 0 {
+            warn!("录制分析跳过 - {} 个录制文件不存在", result.total);
+        }
         Ok(result)
     }
 
@@ -142,7 +146,8 @@ impl ScreenshotAnalyzer {
     async fn analyze_recording_with_retry(&self, id: &str, path: &str) -> std::result::Result<(), Option<anyhow::Error>> {
         let p = Path::new(path);
         if !p.exists() {
-            warn!("录制文件不存在: {}", path);
+            warn!("录制文件不存在，标记为已跳过: {}", path);
+            self.mark_recording_analyzed(id).ok();
             return Err(None);
         }
         for attempt in 0..=self.config.max_retries {

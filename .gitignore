@@ -15,6 +15,12 @@ downloads/
 eggs/
 .eggs/
 
+
+lib/
+lib64/
+# 前端源码 lib 目录不忽略（工具函数、API 封装等手写源码）
+!vision-jarvis/src/lib/
+
 parts/
 sdist/
 var/
