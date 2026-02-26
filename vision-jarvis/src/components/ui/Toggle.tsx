@@ -5,16 +5,37 @@ interface ToggleProps {
 }
 
 export function Toggle({ enabled, onChange, size = 'sm' }: ToggleProps) {
-  const cls = size === 'lg' ? 'w-16 h-8 px-1' : 'w-12 h-6 px-0.5'
-  const ball = size === 'lg' ? 'w-6 h-6' : 'w-5 h-5'
+  const isLg = size === 'lg'
+  const trackW = isLg ? 'w-14' : 'w-11'
+  const trackH = isLg ? 'h-7' : 'h-6'
+  const thumbSz = isLg ? 'w-5 h-5' : 'w-4 h-4'
+
   return (
-    <div
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
       onClick={() => onChange(!enabled)}
-      className={`${cls} rounded-full flex items-center cursor-pointer transition-all duration-300 ${
-        enabled ? 'gradient-success justify-end' : 'bg-secondary'
-      }`}
+      className={`
+        relative inline-flex ${trackW} ${trackH} shrink-0 cursor-pointer
+        rounded-full border transition-all duration-300 ease-out
+        focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30
+        ${enabled
+          ? 'toggle-track-on'
+          : 'toggle-track-off'
+        }
+      `}
     >
-      <div className={`${ball} bg-white rounded-full transition-all duration-300 pointer-events-none`} />
-    </div>
+      <span
+        className={`
+          ${thumbSz} rounded-full absolute top-1/2 -translate-y-1/2
+          transition-all duration-300 ease-out pointer-events-none
+          ${enabled
+            ? `translate-x-[calc(100%+${isLg ? '8px' : '6px'})] toggle-thumb`
+            : `translate-x-[3px] toggle-thumb-off`
+          }
+        `}
+      />
+    </button>
   )
 }
