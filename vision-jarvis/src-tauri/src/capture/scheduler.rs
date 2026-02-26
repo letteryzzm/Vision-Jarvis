@@ -12,6 +12,7 @@ pub struct CaptureScheduler {
     pub interval_seconds: u64,
     is_running: Arc<Mutex<bool>>,
     task_handle: Option<JoinHandle<()>>,
+    analysis_tx: Option<tokio::sync::mpsc::Sender<(String, std::path::PathBuf)>>,
 }
 
 impl CaptureScheduler {
@@ -22,11 +23,17 @@ impl CaptureScheduler {
             interval_seconds: segment_duration_secs,
             is_running: Arc::new(Mutex::new(false)),
             task_handle: None,
+            analysis_tx: None,
         }
     }
 
     pub fn with_db(mut self, db: Arc<Database>) -> Self {
         self.db = Some(db);
+        self
+    }
+
+    pub fn with_analysis_sender(mut self, tx: tokio::sync::mpsc::Sender<(String, std::path::PathBuf)>) -> Self {
+        self.analysis_tx = Some(tx);
         self
     }
 
@@ -41,6 +48,7 @@ impl CaptureScheduler {
         let recorder = Arc::clone(&self.recorder);
         let db = self.db.clone();
         let is_running = Arc::clone(&self.is_running);
+        let analysis_tx = self.analysis_tx.clone();
 
         let interval = self.interval_seconds;
 
@@ -103,6 +111,15 @@ impl CaptureScheduler {
                         error!("Failed to save recording: {}", e);
                     } else {
                         info!("Saved: {}..{} ({}s)", &id[..8], &id[id.len()-4..], duration);
+                        // 通知 pipeline 立即分析这条录制
+                        if let Some(ref tx) = analysis_tx {
+                            let path = output_path.clone();
+                            let id_clone = id.clone();
+                            let tx_clone = tx.clone();
+                            tokio::spawn(async move {
+                                let _ = tx_clone.send((id_clone, path)).await;
+                            });
+                        }
                     }
                 }
             }

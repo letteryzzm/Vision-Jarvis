@@ -78,6 +78,15 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         tx.commit()?;
     }
 
+    // V8: 修复 screenshot_analyses.screenshot_id FK 指向错误
+    // 原来 FK -> screenshots(id)，现在系统用 recordings，必须去掉该 FK
+    if version < 8 {
+        let tx = conn.unchecked_transaction()?;
+        migrate_v8(&tx)?;
+        set_schema_version(&tx, 8)?;
+        tx.commit()?;
+    }
+
     Ok(())
 }
 
@@ -373,8 +382,7 @@ fn create_screenshot_analyses_table(conn: &Connection) -> Result<()> {
             context_tags TEXT NOT NULL DEFAULT '[]',
             productivity_score INTEGER DEFAULT 5,
             analysis_json TEXT NOT NULL,
-            analyzed_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-            FOREIGN KEY (screenshot_id) REFERENCES screenshots(id)
+            analyzed_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )",
         [],
     )?;
@@ -684,6 +692,69 @@ fn add_activity_id_to_screenshots(conn: &Connection) -> Result<()> {
             [],
         )?;
     }
+
+    Ok(())
+}
+
+// ============================================================================
+// V8: Fix screenshot_analyses FK
+// ============================================================================
+
+/// V8 迁移：重建 screenshot_analyses，去掉对 screenshots(id) 的错误 FK
+/// SQLite 不支持 DROP CONSTRAINT，只能重建表
+fn migrate_v8(conn: &Connection) -> Result<()> {
+    // 1. 创建新表（无 FK 约束）
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS screenshot_analyses_v8 (
+            screenshot_id TEXT PRIMARY KEY,
+            application TEXT NOT NULL,
+            activity_type TEXT NOT NULL,
+            activity_description TEXT NOT NULL,
+            key_elements TEXT NOT NULL DEFAULT '[]',
+            ocr_text TEXT,
+            context_tags TEXT NOT NULL DEFAULT '[]',
+            productivity_score INTEGER DEFAULT 5,
+            analysis_json TEXT NOT NULL,
+            analyzed_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            activity_category TEXT DEFAULT 'other',
+            activity_summary TEXT DEFAULT '',
+            project_name TEXT,
+            accomplishments TEXT DEFAULT '[]'
+        )",
+        [],
+    )?;
+
+    // 2. 迁移现有数据
+    conn.execute(
+        "INSERT OR IGNORE INTO screenshot_analyses_v8
+         SELECT screenshot_id, application, activity_type, activity_description,
+                key_elements, ocr_text, context_tags, productivity_score,
+                analysis_json, analyzed_at,
+                COALESCE(activity_category, 'other'),
+                COALESCE(activity_summary, ''),
+                project_name,
+                COALESCE(accomplishments, '[]')
+         FROM screenshot_analyses",
+        [],
+    )?;
+
+    // 3. 删除旧表，重命名新表
+    conn.execute("DROP TABLE screenshot_analyses", [])?;
+    conn.execute("ALTER TABLE screenshot_analyses_v8 RENAME TO screenshot_analyses", [])?;
+
+    // 4. 重建索引
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sa_application ON screenshot_analyses(application)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sa_activity_type ON screenshot_analyses(activity_type)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sa_analyzed_at ON screenshot_analyses(analyzed_at DESC)",
+        [],
+    )?;
 
     Ok(())
 }

@@ -49,8 +49,6 @@ fn default_activity_category() -> String {
 /// 分析配置
 #[derive(Debug, Clone)]
 pub struct AnalyzerConfig {
-    /// 每批分析的最大录制分段数
-    pub batch_size: usize,
     /// 分析失败后的最大重试次数
     pub max_retries: u32,
 }
@@ -58,7 +56,6 @@ pub struct AnalyzerConfig {
 impl Default for AnalyzerConfig {
     fn default() -> Self {
         Self {
-            batch_size: 10,
             max_retries: 2,
         }
     }
@@ -82,7 +79,9 @@ impl ScreenshotAnalyzer {
         recording_id: &str,
         video_path: &Path,
     ) -> Result<ScreenshotAnalysis> {
+        info!("读取视频文件: {} (exists={})", video_path.display(), video_path.exists());
         let video_data = tokio::fs::read(video_path).await?;
+        info!("视频文件大小: {} bytes, base64约: {} bytes", video_data.len(), video_data.len() * 4 / 3);
         let video_base64 = BASE64.encode(&video_data);
 
         let prompt = recording_understanding_prompt();
@@ -114,77 +113,32 @@ impl ScreenshotAnalyzer {
         Ok(analysis)
     }
 
-    /// 批量分析未处理的录制分段
-    pub async fn analyze_pending_recordings(&self) -> Result<AnalysisBatchResult> {
-        let pending = self.get_pending_recordings()?;
-
-        if pending.is_empty() {
-            return Ok(AnalysisBatchResult::default());
+    /// 即时分析单条录制（由 channel 事件驱动，跳过 DB 查询）
+    pub async fn analyze_single_direct(&self, id: &str, path: &std::path::Path) -> Result<()> {
+        if !path.exists() {
+            warn!("录制文件不存在，跳过: {}", path.display());
+            self.mark_recording_analyzed(id)?;
+            return Ok(());
         }
-
-        info!("开始批量分析 {} 个录制分段", pending.len());
-        let mut result = AnalysisBatchResult { total: pending.len(), ..Default::default() };
-
-        for rec in pending {
-            match self.analyze_recording_with_retry(&rec.id, &rec.path).await {
-                Ok(_) => result.analyzed += 1,
-                Err(None) => result.skipped += 1,
-                Err(Some(_)) => result.failed += 1,
-            }
-        }
-
-        if result.analyzed > 0 || result.failed > 0 {
-            info!("录制分析完成 - 总计: {}, 成功: {}, 跳过: {}, 失败: {}",
-                result.total, result.analyzed, result.skipped, result.failed);
-        } else if result.skipped > 0 {
-            warn!("录制分析跳过 - {} 个录制文件不存在", result.total);
-        }
-        Ok(result)
-    }
-
-    /// 带重试的录制分析（Ok=成功, Err(None)=跳过, Err(Some)=失败）
-    async fn analyze_recording_with_retry(&self, id: &str, path: &str) -> std::result::Result<(), Option<anyhow::Error>> {
-        let p = Path::new(path);
-        if !p.exists() {
-            warn!("录制文件不存在，标记为已跳过: {}", path);
-            self.mark_recording_analyzed(id).ok();
-            return Err(None);
-        }
+        let short_id = &id[..8.min(id.len())];
+        info!("即时分析录制: {}...", short_id);
         for attempt in 0..=self.config.max_retries {
-            match self.analyze_recording(id, p).await {
-                Ok(_) => return Ok(()),
-                Err(e) if attempt == self.config.max_retries => {
-                    error!("录制分析失败(已重试{}次): {} - {}", attempt, id, e);
-                    return Err(Some(e));
+            match self.analyze_recording(id, path).await {
+                Ok(_) => {
+                    info!("即时分析完成: {}", short_id);
+                    return Ok(());
+                }
+                Err(e) if attempt < self.config.max_retries => {
+                    warn!("即时分析失败(重试{}/{}): {} - {}", attempt + 1, self.config.max_retries, short_id, e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                 }
                 Err(e) => {
-                    warn!("录制分析失败(重试{}/{}): {} - {}", attempt + 1, self.config.max_retries, id, e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    error!("即时分析失败(已重试{}次): {} - {}", self.config.max_retries, short_id, e);
+                    return Err(e);
                 }
             }
         }
-        unreachable!()
-    }
-
-    /// 获取待分析的录制分段
-    fn get_pending_recordings(&self) -> Result<Vec<PendingRecording>> {
-        self.db.with_connection(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT id, path FROM recordings
-                 WHERE analyzed = 0 AND end_time IS NOT NULL
-                 ORDER BY start_time ASC
-                 LIMIT ?1"
-            )?;
-            let recs = stmt
-                .query_map([self.config.batch_size], |row| {
-                    Ok(PendingRecording {
-                        id: row.get(0)?,
-                        path: row.get(1)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            Ok(recs)
-        })
+        Ok(())
     }
 
     /// 标记录制为已分析
@@ -228,22 +182,6 @@ impl ScreenshotAnalyzer {
             Ok(())
         })
     }
-}
-
-/// 待分析的录制分段
-#[derive(Debug)]
-struct PendingRecording {
-    id: String,
-    path: String,
-}
-
-/// 批量分析结果
-#[derive(Debug, Default)]
-pub struct AnalysisBatchResult {
-    pub total: usize,
-    pub analyzed: usize,
-    pub skipped: usize,
-    pub failed: usize,
 }
 
 /// 录制分段理解Prompt
