@@ -1,8 +1,8 @@
 use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use tokio::sync::Mutex;
-use tokio::time::{Duration, Instant};
+use std::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 use chrono::{Local, Timelike};
 use log::{info, warn};
 use uuid::Uuid;
@@ -43,8 +43,9 @@ pub struct ScreenRecorder {
     storage_path: PathBuf,
     fps: u8,
     screen_device_index: u32,
+    /// std::sync::Mutex 使得 Drop 可以同步获取锁，确保 FFmpeg 进程被正确清理
     process: Mutex<Option<Child>>,
-    current_path: Mutex<Option<PathBuf>>,
+    current_path: AsyncMutex<Option<PathBuf>>,
 }
 
 impl ScreenRecorder {
@@ -60,7 +61,7 @@ impl ScreenRecorder {
             fps,
             screen_device_index: idx,
             process: Mutex::new(None),
-            current_path: Mutex::new(None),
+            current_path: AsyncMutex::new(None),
         })
     }
 
@@ -98,43 +99,52 @@ impl ScreenRecorder {
             .spawn()
             .map_err(|e| AppError::capture(3, format!("启动 FFmpeg 失败: {}", e)))?;
 
-        *self.process.lock().await = Some(child);
+        *self.process.lock().unwrap() = Some(child);
         *self.current_path.lock().await = Some(path.clone());
 
         Ok(path)
     }
 
     pub async fn stop(&self) {
-        let mut guard = self.process.lock().await;
-        if let Some(ref mut child) = *guard {
-            #[cfg(unix)]
-            unsafe { libc::kill(child.id() as i32, libc::SIGTERM); }
-            #[cfg(not(unix))]
-            let _ = child.kill();
+        // 使用 spawn_blocking 在阻塞线程上获取同步锁并操作子进程
+        let process = &self.process;
+        tokio::task::block_in_place(|| {
+            let mut guard = process.lock().unwrap();
+            Self::kill_child(guard.as_mut());
+            *guard = None;
+        });
+    }
 
-            let deadline = Instant::now() + Duration::from_secs(5);
-            loop {
-                match child.try_wait() {
-                    Ok(Some(_)) => break,
-                    Ok(None) => {
-                        if Instant::now() >= deadline {
-                            warn!("FFmpeg 未在 5s 内退出，强制终止");
-                            let _ = child.kill();
-                            let _ = child.wait();
-                            break;
-                        }
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                    }
-                    Err(e) => {
-                        warn!("FFmpeg try_wait error: {}", e);
+    /// 同步终止子进程（先 SIGTERM，超时后 SIGKILL）
+    fn kill_child(child: Option<&mut Child>) {
+        let Some(child) = child else { return };
+
+        #[cfg(unix)]
+        unsafe { libc::kill(child.id() as i32, libc::SIGTERM); }
+        #[cfg(not(unix))]
+        let _ = child.kill();
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => {
+                    if std::time::Instant::now() >= deadline {
+                        warn!("FFmpeg 未在 5s 内退出，强制终止");
                         let _ = child.kill();
                         let _ = child.wait();
                         break;
                     }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(e) => {
+                    warn!("FFmpeg try_wait error: {}", e);
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break;
                 }
             }
         }
-        *guard = None;
     }
 
     pub async fn delete_current_file(&self) {
@@ -147,11 +157,10 @@ impl ScreenRecorder {
 
 impl Drop for ScreenRecorder {
     fn drop(&mut self) {
-        if let Ok(mut guard) = self.process.try_lock() {
-            if let Some(ref mut child) = *guard {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
+        // std::sync::Mutex::lock() 阻塞等待，确保 FFmpeg 进程被清理
+        // 即使 stop() 并发持锁，drop 也能在其完成后获取锁
+        if let Ok(mut guard) = self.process.lock() {
+            Self::kill_child(guard.as_mut());
         }
     }
 }
