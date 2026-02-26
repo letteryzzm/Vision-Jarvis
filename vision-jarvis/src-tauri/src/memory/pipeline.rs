@@ -39,6 +39,8 @@ pub struct PipelineScheduler {
     summary_generator: Arc<SummaryGenerator>,
     project_extractor: Arc<ProjectExtractor>,
     habit_detector: Arc<HabitDetector>,
+    /// 即时分析 channel receiver（录制完成后立刻触发）
+    analysis_rx: std::sync::Mutex<Option<tokio::sync::mpsc::Receiver<(String, std::path::PathBuf)>>>,
 }
 
 impl PipelineScheduler {
@@ -100,7 +102,17 @@ impl PipelineScheduler {
             summary_generator,
             project_extractor,
             habit_detector,
+            analysis_rx: std::sync::Mutex::new(None),
         })
+    }
+
+    /// 设置即时分析 channel receiver
+    pub fn with_analysis_receiver(
+        self,
+        rx: tokio::sync::mpsc::Receiver<(String, std::path::PathBuf)>,
+    ) -> Self {
+        *self.analysis_rx.lock().unwrap() = Some(rx);
+        self
     }
 
     /// 动态连接AI客户端（可在管道运行中调用）
@@ -130,7 +142,6 @@ impl PipelineScheduler {
 
     /// 启动管道调度
     pub fn start(&self) -> JoinHandle<()> {
-        let analysis_interval = Duration::from_secs(90);      // 90秒 - 录制分析（分段60秒）
         let grouping_interval = Duration::from_secs(1800);    // 30分钟 - 分组活动
         let indexing_interval = Duration::from_secs(600);     // 10分钟 - 同步索引
         let habit_interval = Duration::from_secs(86400);      // 24小时 - 习惯检测
@@ -143,34 +154,39 @@ impl PipelineScheduler {
         let habit_detector = Arc::clone(&self.habit_detector);
         let project_extractor = Arc::clone(&self.project_extractor);
         let summary_generator = Arc::clone(&self.summary_generator);
+        // 将 analysis_rx 移动到 spawn 闭包中（取出所有权）
+        let analysis_rx = self.analysis_rx.lock().unwrap().take();
 
         tokio::spawn(async move {
-            let mut analysis_tick = interval(analysis_interval);
             let mut grouping_tick = interval(grouping_interval);
             let mut indexing_tick = interval(indexing_interval);
             let mut habit_tick = interval(habit_interval);
             let mut summary_tick = interval(summary_check_interval);
             // 记录上次生成日总结的日期，避免重复生成
             let mut last_summary_date: Option<String> = None;
-            let mut warned_no_analyzer = false;
+            // 即时分析 receiver（从 channel 中取出，放入本地 mut 变量）
+            let mut instant_rx = analysis_rx;
 
             loop {
                 tokio::select! {
-                    _ = analysis_tick.tick() => {
-                        let analyzer = screenshot_analyzer.read().await;
-                        if let Some(ref analyzer) = *analyzer {
-                            match analyzer.analyze_pending_recordings().await {
-                                Ok(result) => {
-                                    if result.analyzed > 0 {
-                                        info!("Recording analysis: {} analyzed, {} skipped, {} failed",
-                                            result.analyzed, result.skipped, result.failed);
-                                    }
+                    msg = async {
+                        if let Some(ref mut rx) = instant_rx {
+                            rx.recv().await
+                        } else {
+                            std::future::pending::<Option<(String, std::path::PathBuf)>>().await
+                        }
+                    } => {
+                        if let Some((id, path)) = msg {
+                            let analyzer = screenshot_analyzer.read().await;
+                            if let Some(ref analyzer) = *analyzer {
+                                info!("[Pipeline] 即时分析录制: {} path={}", &id[..8.min(id.len())], path.display());
+                                match analyzer.analyze_single_direct(&id, &path).await {
+                                    Ok(_) => {},
+                                    Err(e) => warn!("即时分析失败: {} - {}", &id[..8.min(id.len())], e),
                                 }
-                                Err(e) => error!("Recording analysis failed: {}", e),
+                            } else {
+                                warn!("[Pipeline] 收到即时分析请求但 AI 未连接，录制 {}", &id[..8.min(id.len())]);
                             }
-                        } else if !warned_no_analyzer {
-                            warn!("[Pipeline] AI 未连接，录制分析已跳过。请先配置 AI 提供商。");
-                            warned_no_analyzer = true;
                         }
                     }
                     _ = grouping_tick.tick() => {

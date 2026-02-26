@@ -49,7 +49,7 @@ struct SFVideoUrl {
     #[serde(skip_serializing_if = "Option::is_none")]
     max_frames: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    fps: Option<f32>,
+    fps: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -144,21 +144,23 @@ impl AIProvider for SiliconFlowProvider {
     }
 
     async fn analyze_video(&self, video_base64: &str, prompt: &str) -> AppResult<String> {
+        let video_model = self.config.effective_video_model();
+        log::info!("[SiliconFlow] analyze_video -> model: {}", video_model);
         let messages = vec![SFMessage {
             role: "user".to_string(),
             content: vec![
-                SFContent::Text { text: prompt.to_string() },
                 SFContent::VideoUrl {
                     video_url: SFVideoUrl {
                         url: format!("data:video/mp4;base64,{}", video_base64),
                         detail: Some("auto".to_string()),
                         max_frames: Some(10),
-                        fps: Some(2.0),
+                        fps: Some(2),
                     },
                 },
+                SFContent::Text { text: prompt.to_string() },
             ],
         }];
-        self.send_request(messages, self.config.effective_video_model()).await
+        self.send_request(messages, video_model).await
     }
 
     async fn analyze_image(&self, image_base64: &str, prompt: &str) -> AppResult<String> {

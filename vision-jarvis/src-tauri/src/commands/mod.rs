@@ -42,8 +42,11 @@ impl AppState {
         let recorder = ScreenRecorder::new(storage_path.clone(), interval, 2)
             .expect("Failed to create ScreenRecorder");
 
+        let (analysis_tx, analysis_rx) = tokio::sync::mpsc::channel::<(String, std::path::PathBuf)>(8);
+
         let scheduler = CaptureScheduler::new(recorder, interval)
-            .with_db(Arc::clone(&db));
+            .with_db(Arc::clone(&db))
+            .with_analysis_sender(analysis_tx);
 
         let notification_scheduler = NotificationScheduler::new(
             Arc::clone(&db),
@@ -54,7 +57,8 @@ impl AppState {
             Arc::clone(&db),
             storage_path,
             false,
-        ).expect("Failed to create PipelineScheduler");
+        ).expect("Failed to create PipelineScheduler")
+            .with_analysis_receiver(analysis_rx);
 
         Self {
             db,
