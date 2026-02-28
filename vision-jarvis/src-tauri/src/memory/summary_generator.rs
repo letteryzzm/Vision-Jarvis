@@ -86,7 +86,7 @@ impl SummaryGenerator {
             self.generate_template_daily_summary(&activities, date)
         };
 
-        let markdown_path = format!("summaries/daily/{}.md", date);
+        let markdown_path = format!("long_term_memory/daily_summary/{}.md", date);
         let activity_ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
 
         // 提取关联的项目ID

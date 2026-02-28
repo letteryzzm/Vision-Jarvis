@@ -13,7 +13,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub enum FolderType {
     Screenshots,
     Recordings,
-    Memories,
+    LongTermMemory,
+    Project,
+    Habits,
     Database,
     Logs,
     Temp,
@@ -24,10 +26,20 @@ impl FolderType {
         match self {
             FolderType::Screenshots => "screenshots",
             FolderType::Recordings => "recordings",
-            FolderType::Memories => "memories",
+            FolderType::LongTermMemory => "long_term_memory",
+            FolderType::Project => "project",
+            FolderType::Habits => "habits",
             FolderType::Database => "database",
             FolderType::Logs => "logs",
             FolderType::Temp => "temp",
+        }
+    }
+
+    /// 返回需要创建的子目录列表
+    pub fn subdirectories(&self) -> Vec<&str> {
+        match self {
+            FolderType::LongTermMemory => vec!["daily_summary", "range_summary"],
+            _ => vec![],
         }
     }
 }
@@ -38,7 +50,9 @@ pub struct StorageInfo {
     pub total_used_bytes: u64,
     pub screenshots_bytes: u64,
     pub recordings_bytes: u64,
-    pub memories_bytes: u64,
+    pub long_term_memory_bytes: u64,
+    pub project_bytes: u64,
+    pub habits_bytes: u64,
     pub database_bytes: u64,
     pub logs_bytes: u64,
     pub temp_bytes: u64,
@@ -78,12 +92,34 @@ impl StorageManager {
         Ok(Self { root_path })
     }
 
-    /// 确保指定文件夹存在
+    /// 确保指定文件夹存在（含子目录）
     pub fn ensure_folder(&self, folder_type: &FolderType) -> Result<PathBuf> {
         let folder_path = self.root_path.join(folder_type.folder_name());
         fs::create_dir_all(&folder_path)
             .context(format!("创建 {} 文件夹失败", folder_type.folder_name()))?;
+        for sub in folder_type.subdirectories() {
+            fs::create_dir_all(folder_path.join(sub))
+                .context(format!("创建子目录 {}/{} 失败", folder_type.folder_name(), sub))?;
+        }
         Ok(folder_path)
+    }
+
+    /// 确保所有标准文件夹存在
+    pub fn ensure_all_folders(&self) -> Result<()> {
+        let all_types = [
+            FolderType::Screenshots,
+            FolderType::Recordings,
+            FolderType::LongTermMemory,
+            FolderType::Project,
+            FolderType::Habits,
+            FolderType::Database,
+            FolderType::Logs,
+            FolderType::Temp,
+        ];
+        for folder_type in &all_types {
+            self.ensure_folder(folder_type)?;
+        }
+        Ok(())
     }
 
     /// 获取文件夹路径
@@ -122,7 +158,9 @@ impl StorageManager {
         let folders = [
             FolderType::Screenshots,
             FolderType::Recordings,
-            FolderType::Memories,
+            FolderType::LongTermMemory,
+            FolderType::Project,
+            FolderType::Habits,
             FolderType::Database,
             FolderType::Logs,
             FolderType::Temp,
@@ -138,16 +176,18 @@ impl StorageManager {
             total_used_bytes,
             screenshots_bytes: sizes[0].0,
             recordings_bytes: sizes[1].0,
-            memories_bytes: sizes[2].0,
-            database_bytes: sizes[3].0,
-            logs_bytes: sizes[4].0,
-            temp_bytes: sizes[5].0,
+            long_term_memory_bytes: sizes[2].0,
+            project_bytes: sizes[3].0,
+            habits_bytes: sizes[4].0,
+            database_bytes: sizes[5].0,
+            logs_bytes: sizes[6].0,
+            temp_bytes: sizes[7].0,
             total_files,
             root_path: self.root_path.to_string_lossy().to_string(),
         })
     }
 
-    /// 列出指定文件夹中的文件
+    /// 列出指定文件夹中的文件（递归遍历子目录）
     pub fn list_files(
         &self,
         folder_type: &FolderType,
@@ -160,8 +200,22 @@ impl StorageManager {
         }
 
         let mut files: Vec<FileInfo> = Vec::new();
+        self.collect_files_recursive(&folder_path, &mut files)?;
 
-        for entry in fs::read_dir(&folder_path).context("读取目录失败")? {
+        // 按修改时间倒序排列
+        files.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
+
+        // 限制返回数量
+        if let Some(limit) = limit {
+            files.truncate(limit);
+        }
+
+        Ok(files)
+    }
+
+    /// 递归收集目录下所有文件
+    fn collect_files_recursive(&self, dir: &Path, files: &mut Vec<FileInfo>) -> Result<()> {
+        for entry in fs::read_dir(dir).context("读取目录失败")? {
             let entry = entry.context("读取目录项失败")?;
             let metadata = entry.metadata().context("读取元数据失败")?;
 
@@ -198,18 +252,11 @@ impl StorageManager {
                     modified_at,
                     extension,
                 });
+            } else if metadata.is_dir() {
+                self.collect_files_recursive(&entry.path(), files)?;
             }
         }
-
-        // 按修改时间倒序排列
-        files.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
-
-        // 限制返回数量
-        if let Some(limit) = limit {
-            files.truncate(limit);
-        }
-
-        Ok(files)
+        Ok(())
     }
 
     /// 清理指定天数之前的旧文件（递归遍历子目录）
@@ -340,5 +387,43 @@ mod tests {
 
         let result = manager.delete_file("/etc/passwd");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ensure_all_folders() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = StorageManager::new(temp_dir.path().to_path_buf()).unwrap();
+
+        manager.ensure_all_folders().unwrap();
+
+        assert!(temp_dir.path().join("screenshots").exists());
+        assert!(temp_dir.path().join("recordings").exists());
+        assert!(temp_dir.path().join("long_term_memory").exists());
+        assert!(temp_dir.path().join("long_term_memory/daily_summary").exists());
+        assert!(temp_dir.path().join("long_term_memory/range_summary").exists());
+        assert!(temp_dir.path().join("project").exists());
+        assert!(temp_dir.path().join("habits").exists());
+        assert!(temp_dir.path().join("database").exists());
+        assert!(temp_dir.path().join("logs").exists());
+        assert!(temp_dir.path().join("temp").exists());
+    }
+
+    #[test]
+    fn test_list_files_recursive() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = StorageManager::new(temp_dir.path().to_path_buf()).unwrap();
+
+        // 创建嵌套目录结构（模拟 recordings/YYYYMMDD/period/）
+        let recordings_path = manager.ensure_folder(&FolderType::Recordings).unwrap();
+        let sub_dir = recordings_path.join("20260228").join("0_00-12_00");
+        fs::create_dir_all(&sub_dir).unwrap();
+
+        let file1 = sub_dir.join("10-00-01_abc.mp4");
+        let file2 = sub_dir.join("10-00-01_abc.json");
+        fs::File::create(&file1).unwrap();
+        fs::File::create(&file2).unwrap();
+
+        let files = manager.list_files(&FolderType::Recordings, None).unwrap();
+        assert_eq!(files.len(), 2);
     }
 }

@@ -268,7 +268,7 @@ impl ProjectExtractor {
         let now = Utc::now().timestamp();
         let project_id = format!("project-{}", Uuid::new_v4().to_string().split('-').next().unwrap());
         let slug = sanitize_filename(name);
-        let markdown_path = format!("projects/{}.md", slug);
+        let markdown_path = format!("project/{}.md", slug);
 
         let project = Project {
             id: project_id.clone(),

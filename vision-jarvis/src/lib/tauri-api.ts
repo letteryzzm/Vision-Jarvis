@@ -89,7 +89,10 @@ export interface ModelInfo {
 export interface StorageInfo {
   total_used_bytes: number
   screenshots_bytes: number
-  memories_bytes: number
+  recordings_bytes: number
+  long_term_memory_bytes: number
+  project_bytes: number
+  habits_bytes: number
   database_bytes: number
   logs_bytes: number
   temp_bytes: number

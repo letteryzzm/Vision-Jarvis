@@ -109,6 +109,7 @@ impl ScreenshotAnalyzer {
         };
 
         self.save_analysis(&analysis)?;
+        self.write_analysis_json(&analysis, video_path)?;
         self.mark_recording_analyzed(recording_id)?;
         Ok(analysis)
     }
@@ -181,6 +182,17 @@ impl ScreenshotAnalyzer {
             )?;
             Ok(())
         })
+    }
+
+    /// 将分析结果写为 JSON 文件（与 .mp4 同名，扩展名为 .json）
+    fn write_analysis_json(&self, analysis: &ScreenshotAnalysis, video_path: &Path) -> Result<()> {
+        let json_path = video_path.with_extension("json");
+        let json_content = serde_json::to_string_pretty(analysis)
+            .map_err(|e| anyhow::anyhow!("序列化分析结果失败: {}", e))?;
+        std::fs::write(&json_path, json_content)
+            .map_err(|e| anyhow::anyhow!("写入分析JSON失败: {} - {}", json_path.display(), e))?;
+        info!("分析JSON已写入: {}", json_path.display());
+        Ok(())
     }
 }
 
