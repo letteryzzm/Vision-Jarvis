@@ -91,6 +91,13 @@ pub fn run() {
             let storage_path = state.settings.get_storage_path();
             info!("memory_enabled={}, storage={}", memory_enabled, storage_path.display());
 
+            // 确保所有标准文件夹存在
+            if let Ok(manager) = crate::storage::StorageManager::new(storage_path.clone()) {
+                if let Err(e) = manager.ensure_all_folders() {
+                    error!("创建标准文件夹失败: {}", e);
+                }
+            }
+
             if memory_enabled {
                 let scheduler = state.scheduler.clone();
 

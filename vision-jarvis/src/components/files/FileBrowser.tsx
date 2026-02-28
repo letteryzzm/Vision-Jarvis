@@ -49,7 +49,7 @@ export function FileBrowser() {
     ? Math.min((storageInfo.total_used_bytes / (10 * 1024 ** 3)) * 100, 100)
     : 0
 
-  const folderTabs = ['Screenshots', 'Memories', 'Logs']
+  const folderTabs = ['Screenshots', 'Recordings', 'LongTermMemory', 'Project', 'Habits', 'Logs']
 
   return (
     <div className="w-screen h-screen bg-page overflow-y-auto custom-scrollbar">
@@ -80,8 +80,11 @@ export function FileBrowser() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Screenshots', value: storageInfo.screenshots_bytes, color: 'text-info' },
-                  { label: 'Memories', value: storageInfo.memories_bytes, color: 'text-success' },
+                  { label: 'Recordings', value: storageInfo.recordings_bytes, color: 'text-info' },
+                  { label: 'Long-term Memory', value: storageInfo.long_term_memory_bytes, color: 'text-success' },
+                  { label: 'Project', value: storageInfo.project_bytes, color: 'text-warning' },
+                  { label: 'Habits', value: storageInfo.habits_bytes, color: 'text-info' },
+                  { label: 'Screenshots', value: storageInfo.screenshots_bytes, color: 'text-muted' },
                   { label: 'Database', value: storageInfo.database_bytes, color: 'text-warning' },
                   { label: 'Logs', value: storageInfo.logs_bytes, color: 'text-muted' },
                 ].map(({ label, value, color }) => (
